@@ -1,0 +1,45 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    background-color: #faf7f0;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-sage-700 hover:bg-sage-800 text-white font-semibold px-4 py-2 rounded-lg transition-all duration-150 shadow-sm active:scale-95;
+  }
+  .btn-secondary {
+    @apply bg-white hover:bg-cream-100 text-sage-800 font-semibold px-4 py-2 rounded-lg border border-sage-200 transition-all duration-150 shadow-sm active:scale-95;
+  }
+  .btn-gold {
+    @apply bg-gold-500 hover:bg-gold-600 text-white font-semibold px-4 py-2 rounded-lg transition-all duration-150 shadow-sm active:scale-95;
+  }
+  .card {
+    @apply bg-white rounded-xl shadow-card border border-cream-200;
+  }
+  .card-hover {
+    @apply hover:shadow-card-hover transition-shadow duration-200;
+  }
+  .input-field {
+    @apply w-full rounded-lg border border-cream-300 bg-white px-3 py-2 text-sm text-sage-900 placeholder-sage-400 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:border-transparent transition-all duration-150;
+  }
+  .badge-urgencia-alta {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200;
+  }
+  .badge-urgencia-media {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gold-50 text-gold-700 border border-gold-200;
+  }
+  .badge-urgencia-baja {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-sage-50 text-sage-700 border border-sage-200;
+  }
+}

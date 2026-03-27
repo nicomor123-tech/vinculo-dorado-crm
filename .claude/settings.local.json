@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(node run_migrations.mjs)",
+      "Bash(cat supabase/migrations/*.sql)",
+      "Bash(npm run:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(node seed.mjs)",
+      "Bash(node -e \":*)"
+    ]
+  }
+}
