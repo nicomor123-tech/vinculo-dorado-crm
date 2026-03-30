@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Save, Building2, MapPin, Phone, DollarSign, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Save, Building2, MapPin, Phone, DollarSign, CheckCircle2, AlertCircle, Percent } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -39,6 +39,7 @@ const initialForm = {
   precio_desde: '',
   precio_hasta: '',
   cupo_disponible: '',
+  porcentaje_comision: '40',
 };
 
 function SectionHeader({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
@@ -99,6 +100,7 @@ export function NewHogarForm({ onClose, onSuccess }: NewHogarFormProps) {
         precio_desde: form.precio_desde ? Number(form.precio_desde) : null,
         precio_hasta: form.precio_hasta ? Number(form.precio_hasta) : null,
         habitaciones_disponibles: form.cupo_disponible ? Number(form.cupo_disponible) : null,
+        porcentaje_comision: form.porcentaje_comision ? Number(form.porcentaje_comision) : 40,
         serv_enfermeria_24h: !!services['serv_enfermeria_24h'],
         serv_fisioterapia: !!services['serv_fisioterapia'],
         maneja_oxigeno: !!services['maneja_oxigeno'],
@@ -221,6 +223,38 @@ export function NewHogarForm({ onClose, onSuccess }: NewHogarFormProps) {
                 <input type="number" name="cupo_disponible" value={form.cupo_disponible} onChange={handleChange}
                   placeholder="0" min={0} className={inputCls} />
               </Field>
+            </div>
+          </section>
+
+          {/* Comisión */}
+          <section>
+            <SectionHeader icon={Percent} label="Comisión Vínculo Dorado" />
+            <div className="flex items-start gap-4">
+              <div className="w-48">
+                <Field label="% que cobra VD al hogar">
+                  <div className="relative">
+                    <input
+                      type="number"
+                      name="porcentaje_comision"
+                      value={form.porcentaje_comision}
+                      onChange={handleChange}
+                      min={0}
+                      max={100}
+                      className={inputCls}
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">%</span>
+                  </div>
+                </Field>
+              </div>
+              <div className="flex-1 bg-teal-50 border border-teal-100 rounded-xl px-4 py-3 mt-6 text-xs text-teal-700 space-y-1">
+                <p className="font-semibold">Distribución de la comisión:</p>
+                {form.porcentaje_comision && (
+                  <>
+                    <p>Ejecutivo recibe: <strong>30%</strong> del {form.porcentaje_comision}%</p>
+                    <p>Vínculo Dorado: <strong>70%</strong> del {form.porcentaje_comision}%</p>
+                  </>
+                )}
+              </div>
             </div>
           </section>
 

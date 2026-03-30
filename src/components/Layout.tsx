@@ -2,7 +2,7 @@ import { ReactNode, useState } from 'react';
 import {
   LayoutDashboard, Users, LogOut, HeartHandshake,
   Menu, X, Building2, ShieldCheck, Briefcase,
-  Kanban, Bell, UserCog,
+  Kanban, Bell, UserCog, TrendingUp,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -17,9 +17,10 @@ export function Layout({ children, currentView, onViewChange }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Resumen general' },
-    { id: 'leads',     label: 'Leads',     icon: Users,           desc: 'Clientes activos' },
-    { id: 'kanban',    label: 'Pipeline',  icon: Kanban,          desc: 'Vista kanban' },
+    { id: 'dashboard',  label: 'Dashboard',   icon: LayoutDashboard, desc: 'Resumen general' },
+    { id: 'leads',      label: 'Leads',        icon: Users,           desc: 'Clientes activos' },
+    { id: 'kanban',     label: 'Pipeline',     icon: Kanban,          desc: 'Vista kanban' },
+    { id: 'comisiones', label: 'Comisiones',   icon: TrendingUp,      desc: 'Cobros y adelantos' },
     ...(isAdmin ? [
       { id: 'hogares',  label: 'Hogares',  icon: Building2, desc: 'Catálogo' },
       { id: 'usuarios', label: 'Usuarios', icon: UserCog,   desc: 'Equipo' },

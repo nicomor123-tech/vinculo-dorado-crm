@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
   ArrowLeft, MapPin, Phone, Mail, Globe, BedDouble, Heart, Utensils,
-  Building2, CheckCircle2, XCircle, BadgeCheck, Clock, MessageCircle, Pencil, History,
+  Building2, CheckCircle2, XCircle, BadgeCheck, Clock, MessageCircle, Pencil, History, Percent,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 import type { Database } from '../../lib/database.types';
 
 type Hogar = Database['public']['Tables']['hogares']['Row'];
@@ -109,13 +110,72 @@ function BooleanTag({ active, label, onToggle }: { active: boolean; label: strin
 }
 
 export function HogarDetail({ hogarId, onBack }: HogarDetailProps) {
+  const { user } = useAuth();
   const [hogar, setHogar] = useState<Hogar | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingEstado, setUpdatingEstado] = useState(false);
   const [editHistory, setEditHistory] = useState<EditRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [pctHistory, setPctHistory] = useState<Array<{
+    porcentaje_anterior: number | null;
+    porcentaje_nuevo: number;
+    fecha_cambio: string;
+    motivo: string | null;
+  }>>([]);
+  const [showPctHistory, setShowPctHistory] = useState(false);
+  const [editingPct, setEditingPct] = useState(false);
+  const [pctDraft, setPctDraft] = useState('');
+  const [pctMotivo, setPctMotivo] = useState('');
+  const [savingPct, setSavingPct] = useState(false);
 
   useEffect(() => { loadHogar(); }, [hogarId]);
+
+  const loadPctHistory = async () => {
+    const { data } = await supabase
+      .from('historial_porcentaje_hogar')
+      .select('porcentaje_anterior, porcentaje_nuevo, fecha_cambio, motivo')
+      .eq('hogar_id', hogarId)
+      .order('fecha_cambio', { ascending: false })
+      .limit(20);
+    if (data) setPctHistory(data);
+  };
+
+  const savePorcentajeComision = async () => {
+    if (!hogar) return;
+    const nuevo = Number(pctDraft);
+    if (!pctDraft || isNaN(nuevo)) { setEditingPct(false); return; }
+    if (nuevo === hogar.porcentaje_comision) { setEditingPct(false); return; }
+
+    setSavingPct(true);
+    try {
+      await supabase.from('hogares').update({
+        porcentaje_comision: nuevo,
+        updated_at: new Date().toISOString(),
+      }).eq('id', hogar.id);
+
+      await supabase.from('historial_porcentaje_hogar').insert({
+        hogar_id: hogar.id,
+        porcentaje_anterior: hogar.porcentaje_comision ?? null,
+        porcentaje_nuevo: nuevo,
+        cambiado_por: user?.id ?? null,
+        motivo: pctMotivo.trim() || null,
+      });
+
+      setHogar(prev => prev ? { ...prev, porcentaje_comision: nuevo } : null);
+      setEditHistory(prev => [{
+        campo: 'porcentaje_comision',
+        valorAnterior: String(hogar.porcentaje_comision ?? '—'),
+        valorNuevo: String(nuevo),
+        fecha: new Date().toISOString(),
+      }, ...prev]);
+      // Refresh pct history
+      loadPctHistory();
+    } finally {
+      setSavingPct(false);
+      setEditingPct(false);
+      setPctMotivo('');
+    }
+  };
 
   const loadHogar = async () => {
     setLoading(true);
@@ -313,7 +373,93 @@ export function HogarDetail({ hogarId, onBack }: HogarDetailProps) {
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Commission % card */}
+        <div className="bg-teal-50 border border-teal-200 rounded-xl p-5 flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-teal-600 uppercase tracking-wider flex items-center gap-1">
+              <Percent className="w-3 h-3" />
+              % Comisión VD
+            </p>
+            <button
+              onClick={() => {
+                setShowPctHistory(v => !v);
+                if (!showPctHistory && pctHistory.length === 0) loadPctHistory();
+              }}
+              className="text-xs text-teal-500 hover:text-teal-700 flex items-center gap-1 transition"
+            >
+              <History className="w-3 h-3" />
+              Historial
+            </button>
+          </div>
+          {editingPct ? (
+            <div className="space-y-2 mt-1">
+              <input
+                autoFocus
+                type="number"
+                value={pctDraft}
+                onChange={e => setPctDraft(e.target.value)}
+                min={0}
+                max={100}
+                className="w-full px-2 py-1.5 border border-teal-400 rounded-lg text-lg font-bold focus:ring-2 focus:ring-teal-400 outline-none"
+              />
+              <input
+                type="text"
+                value={pctMotivo}
+                onChange={e => setPctMotivo(e.target.value)}
+                placeholder="Motivo del cambio (opcional)"
+                className="w-full px-2 py-1.5 border border-teal-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-400 outline-none"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={savePorcentajeComision}
+                  disabled={savingPct}
+                  className="flex-1 px-3 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-semibold hover:bg-teal-700 transition disabled:opacity-50"
+                >
+                  {savingPct ? '...' : 'Guardar'}
+                </button>
+                <button
+                  onClick={() => { setEditingPct(false); setPctMotivo(''); }}
+                  className="px-3 py-1.5 border border-teal-300 text-teal-600 rounded-lg text-xs hover:bg-teal-100 transition"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => { setPctDraft(String(hogar.porcentaje_comision ?? 40)); setEditingPct(true); }}
+              className="group flex items-center gap-2 text-left"
+            >
+              <span className="text-2xl font-bold text-teal-800">
+                {hogar.porcentaje_comision ?? 40}%
+              </span>
+              <Pencil className="w-3.5 h-3.5 text-teal-400 opacity-0 group-hover:opacity-100 transition" />
+            </button>
+          )}
+          <p className="text-xs text-teal-500">VD cobra al hogar</p>
+
+          {/* Inline pct history */}
+          {showPctHistory && (
+            <div className="mt-2 border-t border-teal-200 pt-2 space-y-1">
+              {pctHistory.length === 0 ? (
+                <p className="text-xs text-teal-400">Sin cambios registrados.</p>
+              ) : (
+                pctHistory.slice(0, 5).map((h, i) => (
+                  <div key={i} className="flex items-center gap-1.5 text-xs">
+                    <span className="text-red-500 line-through">{h.porcentaje_anterior ?? '—'}%</span>
+                    <span className="text-teal-400">→</span>
+                    <span className="text-teal-700 font-semibold">{h.porcentaje_nuevo}%</span>
+                    <span className="text-teal-400 ml-auto">
+                      {new Date(h.fecha_cambio).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col gap-1">
           <p className="text-xs text-gray-400 uppercase tracking-wider">Precio desde</p>
           <InlineField

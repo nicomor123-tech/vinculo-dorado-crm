@@ -177,6 +177,7 @@ export interface Database {
           barrio: string | null
           localidad: string | null
           ciudad: string
+          porcentaje_comision: number | null
           nombre_responsable: string | null
           telefono: string | null
           whatsapp: string | null
@@ -220,6 +221,7 @@ export interface Database {
           barrio?: string | null
           localidad?: string | null
           ciudad?: string
+          porcentaje_comision?: number | null
           nombre_responsable?: string | null
           telefono?: string | null
           whatsapp?: string | null
@@ -263,6 +265,7 @@ export interface Database {
           barrio?: string | null
           localidad?: string | null
           ciudad?: string
+          porcentaje_comision?: number | null
           nombre_responsable?: string | null
           telefono?: string | null
           whatsapp?: string | null
@@ -509,6 +512,123 @@ export interface Database {
           propuesta_id?: string
           hogar_id?: string
           orden?: number
+          created_at?: string
+        }
+      }
+      comisiones: {
+        Row: {
+          id: string
+          lead_id: string | null
+          hogar_id: string | null
+          ejecutivo_id: string | null
+          valor_primer_mes: number
+          porcentaje_vinculo: number
+          valor_comision_total: number
+          valor_ejecutivo: number
+          valor_vinculo_dorado: number
+          estado_cobro: string
+          fecha_generacion: string
+          fecha_cobro: string | null
+          notas: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          lead_id?: string | null
+          hogar_id?: string | null
+          ejecutivo_id?: string | null
+          valor_primer_mes?: number
+          porcentaje_vinculo?: number
+          valor_comision_total?: number
+          valor_ejecutivo?: number
+          valor_vinculo_dorado?: number
+          estado_cobro?: string
+          fecha_generacion?: string
+          fecha_cobro?: string | null
+          notas?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          lead_id?: string | null
+          hogar_id?: string | null
+          ejecutivo_id?: string | null
+          valor_primer_mes?: number
+          porcentaje_vinculo?: number
+          valor_comision_total?: number
+          valor_ejecutivo?: number
+          valor_vinculo_dorado?: number
+          estado_cobro?: string
+          fecha_generacion?: string
+          fecha_cobro?: string | null
+          notas?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      adelantos_comision: {
+        Row: {
+          id: string
+          comision_id: string
+          ejecutivo_id: string | null
+          monto: number
+          fecha: string
+          aprobado_por: string | null
+          notas: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          comision_id: string
+          ejecutivo_id?: string | null
+          monto: number
+          fecha?: string
+          aprobado_por?: string | null
+          notas?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          comision_id?: string
+          ejecutivo_id?: string | null
+          monto?: number
+          fecha?: string
+          aprobado_por?: string | null
+          notas?: string | null
+          created_at?: string
+        }
+      }
+      historial_porcentaje_hogar: {
+        Row: {
+          id: string
+          hogar_id: string
+          porcentaje_anterior: number | null
+          porcentaje_nuevo: number
+          fecha_cambio: string
+          cambiado_por: string | null
+          motivo: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          hogar_id: string
+          porcentaje_anterior?: number | null
+          porcentaje_nuevo: number
+          fecha_cambio?: string
+          cambiado_por?: string | null
+          motivo?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          hogar_id?: string
+          porcentaje_anterior?: number | null
+          porcentaje_nuevo?: number
+          fecha_cambio?: string
+          cambiado_por?: string | null
+          motivo?: string | null
           created_at?: string
         }
       }

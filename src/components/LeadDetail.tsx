@@ -451,6 +451,7 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
               leadId={leadId}
               estadoActual={lead.estado}
               onSaved={loadLeadData}
+              leadData={{ ejecutivo_id: lead.ejecutivo_id, presupuesto_mensual: lead.presupuesto_mensual }}
             />
 
             <div className={`bg-white rounded-xl shadow-sm border border-gray-100 border-l-4 ${stageBorder} p-6`}>

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ClipboardList, Save, Phone, Mail, MessageSquare, Eye, MoreHorizontal, ArrowRight, Calendar, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ClipboardList, Save, Phone, Mail, MessageSquare, Eye, MoreHorizontal, ArrowRight, Calendar, CheckCircle2, Trophy } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { PIPELINE_STAGES, getStageLabel, getStageStrongColor } from '../../lib/pipeline';
@@ -9,6 +9,14 @@ interface GestionPanelProps {
   leadId: string;
   estadoActual: string;
   onSaved: () => void;
+  leadData?: {
+    ejecutivo_id: string | null;
+    presupuesto_mensual: number | null;
+  };
+}
+
+function formatCOP(v: number) {
+  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v);
 }
 
 const TIPO_OPTIONS = [
@@ -19,7 +27,7 @@ const TIPO_OPTIONS = [
   { value: 'otro', label: 'Otro', icon: MoreHorizontal },
 ];
 
-export function GestionPanel({ leadId, estadoActual, onSaved }: GestionPanelProps) {
+export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: GestionPanelProps) {
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -31,6 +39,49 @@ export function GestionPanel({ leadId, estadoActual, onSaved }: GestionPanelProp
     proximaFecha: '',
     proximaAccion: '',
   });
+
+  // Commission form — shown when cierre_ganado is selected
+  const [comisionForm, setComisionForm] = useState({
+    valor_primer_mes: '',
+    porcentaje_vinculo: '40',
+    hogar_id: '',
+  });
+  const [hogaresList, setHogaresList] = useState<Array<{ id: string; nombre: string; porcentaje_comision: number | null }>>([]);
+
+  const showComisionPanel = form.nuevaEtapa === 'cierre_ganado';
+
+  useEffect(() => {
+    if (showComisionPanel) {
+      // Load hogares for dropdown
+      supabase
+        .from('hogares')
+        .select('id, nombre, porcentaje_comision')
+        .eq('estado', 'aprobado')
+        .order('nombre')
+        .then(({ data }) => { if (data) setHogaresList(data); });
+
+      // Pre-populate with lead's budget
+      if (leadData?.presupuesto_mensual && !comisionForm.valor_primer_mes) {
+        setComisionForm(prev => ({ ...prev, valor_primer_mes: String(leadData.presupuesto_mensual) }));
+      }
+    }
+  }, [showComisionPanel]);
+
+  const handleHogarSelect = (hogarId: string) => {
+    const hogar = hogaresList.find(h => h.id === hogarId);
+    setComisionForm(prev => ({
+      ...prev,
+      hogar_id: hogarId,
+      porcentaje_vinculo: hogar?.porcentaje_comision != null ? String(hogar.porcentaje_comision) : '40',
+    }));
+  };
+
+  // Calculated commission amounts (live preview)
+  const calcBase       = Number(comisionForm.valor_primer_mes) || 0;
+  const calcPct        = Number(comisionForm.porcentaje_vinculo) || 40;
+  const calcTotal      = calcBase * calcPct / 100;
+  const calcEjecutivo  = calcTotal * 0.30;
+  const calcVD         = calcTotal * 0.70;
 
   const etapaCambiada = form.nuevaEtapa !== estadoActual;
 
@@ -103,6 +154,23 @@ export function GestionPanel({ leadId, estadoActual, onSaved }: GestionPanelProp
         }
       }
 
+      // Auto-generate commission when closing as won
+      if (form.nuevaEtapa === 'cierre_ganado' && calcBase > 0) {
+        ops.push(
+          supabase.from('comisiones').insert({
+            lead_id: leadId,
+            hogar_id: comisionForm.hogar_id || null,
+            ejecutivo_id: leadData?.ejecutivo_id || null,
+            valor_primer_mes: calcBase,
+            porcentaje_vinculo: calcPct,
+            valor_comision_total: calcTotal,
+            valor_ejecutivo: calcEjecutivo,
+            valor_vinculo_dorado: calcVD,
+            estado_cobro: 'pendiente',
+          })
+        );
+      }
+
       await Promise.all(ops);
 
       setForm({
@@ -112,6 +180,7 @@ export function GestionPanel({ leadId, estadoActual, onSaved }: GestionPanelProp
         proximaFecha: '',
         proximaAccion: '',
       });
+      setComisionForm({ valor_primer_mes: '', porcentaje_vinculo: '40', hogar_id: '' });
 
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -198,6 +267,73 @@ export function GestionPanel({ leadId, estadoActual, onSaved }: GestionPanelProp
             className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
           />
         </div>
+
+        {/* Commission panel — shown when cierre_ganado selected */}
+        {showComisionPanel && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-yellow-600" />
+              <span className="text-xs font-semibold text-yellow-800 uppercase tracking-wide">🏆 Registrar comisión</span>
+              <span className="ml-auto text-xs text-yellow-600">Opcional · editable después</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-yellow-800 mb-1">Valor 1er mes pactado</label>
+                <input
+                  type="number"
+                  value={comisionForm.valor_primer_mes}
+                  onChange={e => setComisionForm(prev => ({ ...prev, valor_primer_mes: e.target.value }))}
+                  placeholder={leadData?.presupuesto_mensual ? String(leadData.presupuesto_mensual) : 'Ej: 3000000'}
+                  min={0}
+                  className="w-full px-3 py-2 border border-yellow-300 bg-white rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-yellow-800 mb-1">% Vínculo Dorado</label>
+                <input
+                  type="number"
+                  value={comisionForm.porcentaje_vinculo}
+                  onChange={e => setComisionForm(prev => ({ ...prev, porcentaje_vinculo: e.target.value }))}
+                  min={0}
+                  max={100}
+                  className="w-full px-3 py-2 border border-yellow-300 bg-white rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-yellow-800 mb-1">Hogar seleccionado</label>
+              <select
+                value={comisionForm.hogar_id}
+                onChange={e => handleHogarSelect(e.target.value)}
+                className="w-full px-3 py-2 border border-yellow-300 bg-white rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+              >
+                <option value="">Sin hogar asignado</option>
+                {hogaresList.map(h => (
+                  <option key={h.id} value={h.id}>{h.nombre}{h.porcentaje_comision != null ? ` (${h.porcentaje_comision}%)` : ''}</option>
+                ))}
+              </select>
+            </div>
+
+            {calcBase > 0 && (
+              <div className="bg-white rounded-lg border border-yellow-200 p-3 grid grid-cols-3 gap-2 text-xs">
+                <div className="text-center">
+                  <p className="text-gray-500">Comisión total ({calcPct}%)</p>
+                  <p className="font-bold text-gray-900 mt-0.5">{formatCOP(calcTotal)}</p>
+                </div>
+                <div className="text-center border-l border-r border-yellow-100">
+                  <p className="text-blue-600">Ejecutivo (30%)</p>
+                  <p className="font-bold text-blue-800 mt-0.5">{formatCOP(calcEjecutivo)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-green-600">Vínculo Dorado (70%)</p>
+                  <p className="font-bold text-green-800 mt-0.5">{formatCOP(calcVD)}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 space-y-3">
           <div className="flex items-center gap-2">

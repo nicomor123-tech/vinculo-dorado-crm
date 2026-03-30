@@ -13,6 +13,7 @@ import { NewHogarForm } from './components/hogares/NewHogarForm';
 import { ProposalPage } from './components/ProposalPage';
 import { KanbanView } from './components/KanbanView';
 import { UserManagement } from './components/UserManagement';
+import { ComisionesModule } from './components/ComisionesModule';
 
 const proposalMatch = window.location.pathname.match(/^\/propuesta\/([^/]+)/);
 const PUBLIC_PROPOSAL_ID = proposalMatch ? proposalMatch[1] : null;
@@ -83,6 +84,8 @@ function AppContent() {
       {currentView === 'hogares' && selectedHogarId && (
         <HogarDetail hogarId={selectedHogarId} onBack={() => setSelectedHogarId(null)} />
       )}
+
+      {currentView === 'comisiones' && <ComisionesModule />}
 
       {currentView === 'usuarios' && <UserManagement />}
 
