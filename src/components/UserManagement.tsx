@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
   Users, Plus, ShieldCheck, Briefcase, X, Check,
-  Activity, TrendingUp, ToggleLeft, ToggleRight, Info,
+  Activity, TrendingUp, ToggleLeft, ToggleRight,
+  Mail, KeyRound, AlertCircle, CheckCircle,
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseAdmin } from '../lib/supabase';
 import type { Database } from '../lib/database.types';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -44,9 +45,11 @@ export function UserManagement() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [resetStatus, setResetStatus] = useState<Record<string, 'sending' | 'sent' | 'error'>>({});
   const [newUser, setNewUser] = useState({
     nombre_completo: '',
     email: '',
+    password: '',
     rol: 'ejecutivo_comercial',
   });
 
@@ -54,11 +57,12 @@ export function UserManagement() {
 
   const loadData = async () => {
     setLoading(true);
+    const client = supabaseAdmin ?? supabase;
     try {
       const [profilesRes, leadsRes, actRes] = await Promise.all([
-        supabase.from('profiles').select('*').order('nombre_completo'),
-        supabase.from('leads').select('ejecutivo_id'),
-        supabase.from('activity_log').select('user_id'),
+        client.from('profiles').select('*').order('nombre_completo'),
+        client.from('leads').select('ejecutivo_id'),
+        client.from('activity_log').select('user_id'),
       ]);
 
       setProfiles(profilesRes.data || []);
@@ -82,7 +86,8 @@ export function UserManagement() {
   };
 
   const toggleActivo = async (profile: Profile) => {
-    await supabase.from('profiles').update({ activo: !profile.activo }).eq('id', profile.id);
+    const client = supabaseAdmin ?? supabase;
+    await client.from('profiles').update({ activo: !profile.activo }).eq('id', profile.id);
     setProfiles(prev => prev.map(p => p.id === profile.id ? { ...p, activo: !p.activo } : p));
   };
 
@@ -92,24 +97,66 @@ export function UserManagement() {
       setFormError('Nombre y correo son requeridos.');
       return;
     }
+    if (!newUser.password || newUser.password.length < 8) {
+      setFormError('La contraseña debe tener al menos 8 caracteres.');
+      return;
+    }
+    if (!supabaseAdmin) {
+      setFormError('Admin client no disponible. Verifica VITE_SUPABASE_SERVICE_ROLE_KEY en .env.');
+      return;
+    }
+
     setSaving(true);
     setFormError('');
+
     try {
-      const { error } = await supabase.from('profiles').insert({
-        id: crypto.randomUUID(),
+      // 1. Create auth user via Admin API
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: newUser.email.trim().toLowerCase(),
+        password: newUser.password,
+        email_confirm: true, // skip email confirmation
+      });
+
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('No se pudo crear el usuario de autenticación.');
+
+      // 2. Insert profile with the auth user's UUID
+      const { error: profileError } = await supabaseAdmin.from('profiles').insert({
+        id: authData.user.id,
         nombre_completo: newUser.nombre_completo.trim(),
         email: newUser.email.trim().toLowerCase(),
         rol: newUser.rol,
         activo: true,
       });
-      if (error) throw error;
-      setNewUser({ nombre_completo: '', email: '', rol: 'ejecutivo_comercial' });
+
+      if (profileError) {
+        // Rollback: delete the auth user if profile insert fails
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+        throw profileError;
+      }
+
+      setNewUser({ nombre_completo: '', email: '', password: '', rol: 'ejecutivo_comercial' });
       setShowForm(false);
       loadData();
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : 'Error al crear el usuario.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePasswordReset = async (profile: Profile) => {
+    setResetStatus(prev => ({ ...prev, [profile.id]: 'sending' }));
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(profile.email, {
+        redirectTo: `${window.location.origin}/`,
+      });
+      if (error) throw error;
+      setResetStatus(prev => ({ ...prev, [profile.id]: 'sent' }));
+      setTimeout(() => setResetStatus(prev => { const n = { ...prev }; delete n[profile.id]; return n; }), 4000);
+    } catch {
+      setResetStatus(prev => ({ ...prev, [profile.id]: 'error' }));
+      setTimeout(() => setResetStatus(prev => { const n = { ...prev }; delete n[profile.id]; return n; }), 4000);
     }
   };
 
@@ -142,14 +189,8 @@ export function UserManagement() {
       {/* Create user form */}
       {showForm && (
         <div className="bg-white rounded-2xl shadow-card border border-cream-200 p-6">
-          <h2 className="text-base font-semibold text-sage-900 mb-1">Crear nuevo usuario</h2>
-          <div className="flex items-start gap-2 mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-            <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
-            <span>
-              El perfil se creará en el sistema. Para acceso real al CRM, configura la autenticación desde el Panel de Supabase (Authentication → Users).
-            </span>
-          </div>
-          <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <h2 className="text-base font-semibold text-sage-900 mb-4">Crear nuevo usuario</h2>
+          <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-sage-600 mb-1.5">Nombre completo *</label>
               <input
@@ -173,6 +214,17 @@ export function UserManagement() {
               />
             </div>
             <div>
+              <label className="block text-xs font-semibold text-sage-600 mb-1.5">Contraseña inicial *</label>
+              <input
+                type="password"
+                value={newUser.password}
+                onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))}
+                placeholder="Mínimo 8 caracteres"
+                className="w-full px-3 py-2 rounded-xl border border-cream-300 text-sm text-sage-900 placeholder-sage-400 focus:outline-none focus:ring-2 focus:ring-sage-400 bg-cream-50"
+                required
+              />
+            </div>
+            <div>
               <label className="block text-xs font-semibold text-sage-600 mb-1.5">Rol</label>
               <select
                 value={newUser.rol}
@@ -184,11 +236,12 @@ export function UserManagement() {
               </select>
             </div>
             {formError && (
-              <div className="sm:col-span-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <div className="sm:col-span-2 flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                 {formError}
               </div>
             )}
-            <div className="sm:col-span-3 flex justify-end">
+            <div className="sm:col-span-2 flex justify-end">
               <button
                 type="submit"
                 disabled={saving}
@@ -228,13 +281,15 @@ export function UserManagement() {
                     Actividad
                   </div>
                 </th>
-                <th className="text-center py-3 px-4 text-xs font-semibold text-sage-500 uppercase tracking-wide bg-cream-50 rounded-tr-2xl">Estado</th>
+                <th className="text-center py-3 px-4 text-xs font-semibold text-sage-500 uppercase tracking-wide bg-cream-50">Estado</th>
+                <th className="text-center py-3 px-4 text-xs font-semibold text-sage-500 uppercase tracking-wide bg-cream-50 rounded-tr-2xl">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-cream-100">
               {profiles.map(profile => {
                 const leads = leadCounts[profile.id] || 0;
                 const activity = activityCounts[profile.id] || 0;
+                const rs = resetStatus[profile.id];
                 return (
                   <tr key={profile.id} className={`hover:bg-cream-50 transition-colors ${!profile.activo ? 'opacity-50' : ''}`}>
                     <td className="py-3 px-4">
@@ -288,6 +343,32 @@ export function UserManagement() {
                             <ToggleLeft className="w-5 h-5 text-gray-400" />
                             <span className="text-gray-500 hidden sm:inline">Inactivo</span>
                           </>
+                        )}
+                      </button>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <button
+                        onClick={() => handlePasswordReset(profile)}
+                        disabled={!!rs}
+                        title="Enviar correo de restablecimiento de contraseña"
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all border ${
+                          rs === 'sent'
+                            ? 'bg-green-50 text-green-700 border-green-200'
+                            : rs === 'error'
+                            ? 'bg-red-50 text-red-600 border-red-200'
+                            : rs === 'sending'
+                            ? 'bg-cream-100 text-sage-400 border-cream-200 cursor-wait'
+                            : 'bg-cream-50 text-sage-600 border-cream-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200'
+                        }`}
+                      >
+                        {rs === 'sent' ? (
+                          <><CheckCircle className="w-3.5 h-3.5" /><span>Enviado</span></>
+                        ) : rs === 'error' ? (
+                          <><AlertCircle className="w-3.5 h-3.5" /><span>Error</span></>
+                        ) : rs === 'sending' ? (
+                          <><div className="w-3 h-3 border border-sage-400 border-t-transparent rounded-full animate-spin" /><span>Enviando</span></>
+                        ) : (
+                          <><KeyRound className="w-3.5 h-3.5" /><span className="hidden sm:inline">Reset pw</span><Mail className="w-3.5 h-3.5 sm:hidden" /></>
                         )}
                       </button>
                     </td>

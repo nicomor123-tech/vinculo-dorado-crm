@@ -10,6 +10,7 @@ type Hogar = Database['public']['Tables']['hogares']['Row'];
 
 interface HogaresModuleProps {
   onViewDetail: (id: string) => void;
+  onCreateNew?: () => void;
 }
 
 const LOCALIDADES = [
@@ -60,7 +61,7 @@ function EstadoBadge({ estado }: { estado: string }) {
   );
 }
 
-export function HogaresModule({ onViewDetail }: HogaresModuleProps) {
+export function HogaresModule({ onViewDetail, onCreateNew }: HogaresModuleProps) {
   const [hogares, setHogares] = useState<Hogar[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -158,9 +159,14 @@ export function HogaresModule({ onViewDetail }: HogaresModuleProps) {
             {filtered.length} hogar{filtered.length !== 1 ? 'es' : ''} registrado{filtered.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium shadow-sm">
+        <button
+          onClick={onCreateNew}
+          className="flex items-center gap-2 px-4 py-2.5 sm:px-5 text-white rounded-xl transition text-sm font-semibold shadow-sm active:scale-95"
+          style={{ background: 'linear-gradient(135deg, #0d9488, #0f766e)' }}
+        >
           <Plus className="w-4 h-4" />
-          Nuevo hogar
+          <span className="hidden sm:inline">Nuevo hogar</span>
+          <span className="sm:hidden">Nuevo</span>
         </button>
       </div>
 

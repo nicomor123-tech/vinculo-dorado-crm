@@ -5,24 +5,6 @@ import type { Database } from '../lib/database.types';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 
-const DEV_MODE = import.meta.env.DEV;
-
-const DEV_USER = {
-  id: '49b10aa4-baf1-4eb6-9545-ed5a571d2aac',
-  email: 'demo@vinculodorado.com',
-} as User;
-
-const DEV_PROFILE: Profile = {
-  id: '49b10aa4-baf1-4eb6-9545-ed5a571d2aac',
-  nombre_completo: 'Usuario Demo',
-  email: 'demo@vinculodorado.com',
-  rol: 'administrador',
-  activo: true,
-  telefono: null,
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-};
-
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -37,10 +19,10 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(DEV_MODE ? DEV_USER : null);
+  const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(DEV_MODE ? DEV_PROFILE : null);
-  const [loading, setLoading] = useState(!DEV_MODE);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const loadProfile = async (userId: string) => {
     const { data } = await supabase
@@ -52,8 +34,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    if (DEV_MODE) return;
-
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -86,8 +66,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    setUser(null);
+    setSession(null);
+    setProfile(null);
+    await supabase.auth.signOut();
   };
 
   const isAdmin = profile?.rol === 'administrador';

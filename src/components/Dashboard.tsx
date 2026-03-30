@@ -122,10 +122,10 @@ export function Dashboard({ onNavigateToLeads, onViewLead }: DashboardProps) {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="font-display text-3xl text-sage-900">
+          <h1 className="font-display text-2xl sm:text-3xl text-sage-900">
             {isEjecutivo ? `Hola, ${profile?.nombre_completo?.split(' ')[0]} 👋` : 'Dashboard'}
           </h1>
-          <p className="text-sage-500 mt-1 text-sm">
+          <p className="text-sage-500 mt-1 text-xs sm:text-sm">
             {isEjecutivo ? 'Tus leads activos y próximas acciones' : 'Resumen comercial · Vínculo Dorado'}
           </p>
         </div>
@@ -166,36 +166,38 @@ export function Dashboard({ onNavigateToLeads, onViewLead }: DashboardProps) {
       </div>
 
       {/* Pipeline visual */}
-      <div className="bg-white rounded-2xl p-5 shadow-card border border-cream-200">
+      <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-card border border-cream-200">
         <h2 className="font-semibold text-sage-800 mb-4 flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-sage-500" />
           Estado del pipeline
         </h2>
-        <div className="grid grid-cols-3 md:grid-cols-7 gap-2">
-          {STAGE_CONFIG.map((stage) => {
-            const count = leads.filter(l => l.estado === stage.key).length;
-            const pct = totalActive > 0 ? Math.round((count / totalActive) * 100) : 0;
-            return (
-              <button
-                key={stage.key}
-                type="button"
-                onClick={() => onNavigateToLeads?.({ estado: stage.key })}
-                className="text-center hover:opacity-80 transition-opacity cursor-pointer group"
-              >
-                <div className="rounded-xl p-2 mb-1.5 group-hover:ring-2 group-hover:ring-offset-1 transition-all" style={{ background: stage.bg, ['--tw-ring-color' as string]: stage.color }}>
-                  <p className="text-xl font-bold" style={{ color: stage.color }}>{count}</p>
-                </div>
-                <p className="text-xs font-medium text-sage-700 leading-tight">{stage.label}</p>
-                <p className="text-xs text-sage-400">{pct}%</p>
-              </button>
-            );
-          })}
+        <div className="overflow-x-auto -mx-1 px-1">
+          <div className="flex gap-2 min-w-max md:grid md:grid-cols-7 md:min-w-0">
+            {STAGE_CONFIG.map((stage) => {
+              const count = leads.filter(l => l.estado === stage.key).length;
+              const pct = totalActive > 0 ? Math.round((count / totalActive) * 100) : 0;
+              return (
+                <button
+                  key={stage.key}
+                  type="button"
+                  onClick={() => onNavigateToLeads?.({ estado: stage.key })}
+                  className="text-center hover:opacity-80 transition-opacity cursor-pointer group w-20 md:w-auto flex-shrink-0 md:flex-shrink"
+                >
+                  <div className="rounded-xl p-2 mb-1.5 group-hover:ring-2 group-hover:ring-offset-1 transition-all" style={{ background: stage.bg, ['--tw-ring-color' as string]: stage.color }}>
+                    <p className="text-xl font-bold" style={{ color: stage.color }}>{count}</p>
+                  </div>
+                  <p className="text-xs font-medium text-sage-700 leading-tight">{stage.label}</p>
+                  <p className="text-xs text-sage-400">{pct}%</p>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
         {/* Leads que necesitan atención */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-5 shadow-card border border-cream-200">
+        <div className="lg:col-span-2 bg-white rounded-2xl p-4 sm:p-5 shadow-card border border-cream-200">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-sage-800 flex items-center gap-2">
               <Zap className="w-4 h-4 text-gold-500" />

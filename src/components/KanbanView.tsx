@@ -106,8 +106,11 @@ export function KanbanView({ onViewDetail }: KanbanViewProps) {
     <div className="space-y-4">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="font-display text-3xl text-sage-900">Pipeline Kanban</h1>
-          <p className="text-sage-500 mt-1 text-sm">Arrastra los leads entre etapas · actualización inmediata</p>
+          <h1 className="font-display text-2xl sm:text-3xl text-sage-900">Pipeline Kanban</h1>
+          <p className="text-sage-500 mt-1 text-xs sm:text-sm">
+            <span className="hidden sm:inline">Arrastra los leads entre etapas · actualización inmediata</span>
+            <span className="sm:hidden">Desliza para ver etapas · toca para ver detalles</span>
+          </p>
         </div>
         <div className="hidden md:flex items-center gap-2 text-xs text-sage-400 bg-white border border-cream-200 rounded-xl px-3 py-2 shadow-card">
           <span>💡</span>
@@ -115,7 +118,7 @@ export function KanbanView({ onViewDetail }: KanbanViewProps) {
         </div>
       </div>
 
-      <div className="overflow-x-auto pb-4">
+      <div className="overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
         <div className="flex gap-3 min-w-max">
           {visibleStages.map((stage) => {
             const style = STAGE_STYLES[stage.value] ?? STAGE_STYLES['lead_nuevo'];

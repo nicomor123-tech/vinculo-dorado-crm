@@ -316,8 +316,8 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
 
   if (savedSummary !== null) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto">
-        <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl my-16">
+      <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto flex flex-col sm:items-start sm:justify-center sm:p-4">
+        <div className="bg-white sm:rounded-xl shadow-2xl w-full sm:max-w-2xl sm:my-16 flex-1 sm:flex-none">
           <div className="px-6 pt-6 pb-2 flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
               <CheckCircle2 className="w-6 h-6 text-green-600" />
@@ -386,79 +386,30 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl my-8">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 sticky top-0 bg-white rounded-t-xl z-10">
+    <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto flex flex-col sm:items-start sm:justify-center sm:p-4">
+      <div className="bg-white sm:rounded-xl shadow-2xl w-full sm:max-w-3xl sm:my-8 flex-1 sm:flex-none flex flex-col">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200 sticky top-0 bg-white sm:rounded-t-xl z-10 flex-shrink-0">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Nuevo Lead</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Sigue el guión de ventas para capturar la información</p>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900">Nuevo Lead</h2>
+            <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">Sigue el guión de ventas para capturar la información</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition">
+          <button onClick={onClose} className="p-2.5 hover:bg-gray-100 rounded-xl transition active:scale-95">
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-6 py-6 space-y-8">
+        <form onSubmit={handleSubmit} className="px-4 sm:px-6 py-5 sm:py-6 space-y-7 sm:space-y-8 flex-1 overflow-y-auto">
 
-          {/* SECCIÓN 1 – CONTEXTO DE LA BÚSQUEDA */}
+          {/* SECCIÓN 1 – DATOS DEL CONTACTO */}
           <section>
             <SectionHeader
-              icon={MapPin}
+              icon={Phone}
               number={1}
-              label="Contexto de la búsqueda"
-              subtitle="¿Dónde están buscando y quién nos contacta?"
+              label="Datos del contacto"
+              subtitle="¿Quién nos está contactando?"
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad</label>
-                <select
-                  name="ciudad_opcion"
-                  value={formData.ciudad_opcion}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                >
-                  <option value="">Seleccionar</option>
-                  <option value="Bogotá">Bogotá</option>
-                  <option value="Otra">Otra ciudad</option>
-                </select>
-              </div>
-
-              {formData.ciudad_opcion === 'Otra' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">¿Cuál ciudad?</label>
-                  <input
-                    type="text"
-                    name="ciudad_otra"
-                    value={formData.ciudad_otra}
-                    onChange={handleChange}
-                    autoFocus
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                    placeholder="Ej: Medellín"
-                  />
-                </div>
-              )}
-
-              <div className={formData.ciudad_opcion === 'Otra' ? '' : 'md:col-span-1'}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Zona o localidad preferida</label>
-                <input
-                  type="text"
-                  name="zona_localidad"
-                  value={formData.zona_localidad}
-                  onChange={handleChange}
-                  list="zonas-list"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  placeholder="Ej: Chapinero, Suba, Usaquén..."
-                />
-                <datalist id="zonas-list">
-                  {ZONAS_BOGOTA.map((z) => <option key={z} value={z} />)}
-                </datalist>
-              </div>
-
-              <div className="md:col-span-2 border-t border-gray-100 pt-4">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Datos del contacto</p>
-              </div>
-
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Nombre del contacto <span className="text-red-500">*</span>
                 </label>
@@ -468,7 +419,9 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
                   value={formData.nombre_contacto}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  autoFocus
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  placeholder="Nombre completo"
                 />
               </div>
 
@@ -478,7 +431,7 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
                   name="parentesco"
                   value={formData.parentesco}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 >
                   <option value="">Seleccionar</option>
                   <option value="Hijo/a">Hijo/a</option>
@@ -502,7 +455,7 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
                   value={formData.telefono_principal}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   placeholder="Ej: 3001234567"
                 />
               </div>
@@ -514,7 +467,7 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
                   name="whatsapp"
                   value={formData.whatsapp}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   placeholder="Si es diferente al principal"
                 />
               </div>
@@ -526,17 +479,72 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
                   name="telefono_alterno"
                   value={formData.telefono_alterno}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 />
               </div>
             </div>
           </section>
 
-          {/* SECCIÓN 2 – INFORMACIÓN DEL ADULTO MAYOR */}
+          {/* SECCIÓN 2 – CONTEXTO DE LA BÚSQUEDA */}
+          <section>
+            <SectionHeader
+              icon={MapPin}
+              number={2}
+              label="Contexto de la búsqueda"
+              subtitle="¿Dónde están buscando?"
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad</label>
+                <select
+                  name="ciudad_opcion"
+                  value={formData.ciudad_opcion}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                >
+                  <option value="">Seleccionar</option>
+                  <option value="Bogotá">Bogotá</option>
+                  <option value="Otra">Otra ciudad</option>
+                </select>
+              </div>
+
+              {formData.ciudad_opcion === 'Otra' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">¿Cuál ciudad?</label>
+                  <input
+                    type="text"
+                    name="ciudad_otra"
+                    value={formData.ciudad_otra}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    placeholder="Ej: Medellín"
+                  />
+                </div>
+              )}
+
+              <div className={formData.ciudad_opcion === 'Otra' ? '' : 'md:col-span-1'}>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Zona o localidad preferida</label>
+                <input
+                  type="text"
+                  name="zona_localidad"
+                  value={formData.zona_localidad}
+                  onChange={handleChange}
+                  list="zonas-list"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  placeholder="Ej: Chapinero, Suba, Usaquén..."
+                />
+                <datalist id="zonas-list">
+                  {ZONAS_BOGOTA.map((z) => <option key={z} value={z} />)}
+                </datalist>
+              </div>
+            </div>
+          </section>
+
+          {/* SECCIÓN 3 – INFORMACIÓN DEL ADULTO MAYOR */}
           <section>
             <SectionHeader
               icon={User}
-              number={2}
+              number={3}
               label="Información del adulto mayor"
               subtitle="Cuéntame un poco sobre él o ella"
             />
@@ -551,7 +559,7 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
                   name="nombre_adulto_mayor"
                   value={formData.nombre_adulto_mayor}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   placeholder="Nombre completo (si lo saben)"
                 />
               </div>
@@ -564,7 +572,7 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
                   onChange={handleChange}
                   min={50}
                   max={115}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   placeholder="Ej: 82"
                 />
               </div>
@@ -574,7 +582,7 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
                   name="sexo"
                   value={formData.sexo}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 >
                   <option value="">Seleccionar</option>
                   <option value="Masculino">Masculino</option>
@@ -584,11 +592,11 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
             </div>
           </section>
 
-          {/* SECCIÓN 3 – SITUACIÓN MÉDICA GENERAL */}
+          {/* SECCIÓN 4 – SITUACIÓN MÉDICA GENERAL */}
           <section>
             <SectionHeader
               icon={Heart}
-              number={3}
+              number={4}
               label="Situación médica general"
               subtitle="Información rápida para entender el caso"
             />
@@ -606,18 +614,18 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
                   name="diagnosticos"
                   value={formData.diagnosticos}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   placeholder="Ej: Parkinson, insuficiencia renal, ACV previo..."
                 />
               </div>
             </div>
           </section>
 
-          {/* SECCIÓN 4 – NIVEL DE ASISTENCIA */}
+          {/* SECCIÓN 5 – NIVEL DE ASISTENCIA */}
           <section>
             <SectionHeader
               icon={Stethoscope}
-              number={4}
+              number={5}
               label="Nivel de asistencia"
               subtitle="Marca lo que aplica"
             />
@@ -652,11 +660,11 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
             </div>
           </section>
 
-          {/* SECCIÓN 5 – PREFERENCIAS DEL HOGAR */}
+          {/* SECCIÓN 6 – PREFERENCIAS DEL HOGAR */}
           <section>
             <SectionHeader
               icon={Home}
-              number={5}
+              number={6}
               label="Preferencias del hogar"
               subtitle="¿Qué tipo de espacio prefieren?"
             />
@@ -672,7 +680,7 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
                       setFormData((prev) => ({ ...prev, tipo_bano: '' }));
                     }
                   }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 >
                   <option value="">Seleccionar</option>
                   <option value="Compartida">Compartida</option>
@@ -688,7 +696,7 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
                     name="tipo_bano"
                     value={formData.tipo_bano}
                     onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   >
                     <option value="">Seleccionar</option>
                     <option value="Baño privado">Baño privado</option>
@@ -699,11 +707,11 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
             </div>
           </section>
 
-          {/* SECCIÓN 6 – TIEMPO DE INGRESO */}
+          {/* SECCIÓN 7 – TIEMPO DE INGRESO */}
           <section>
             <SectionHeader
               icon={Calendar}
-              number={6}
+              number={7}
               label="Tiempo de ingreso"
               subtitle="¿Para cuándo necesitan el cupo?"
             />
@@ -725,11 +733,11 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
             </div>
           </section>
 
-          {/* SECCIÓN 7 – PRESUPUESTO MENSUAL */}
+          {/* SECCIÓN 8 – PRESUPUESTO MENSUAL */}
           <section>
             <SectionHeader
               icon={Banknote}
-              number={7}
+              number={8}
               label="Presupuesto mensual"
               subtitle="¿Con qué rango cuentan para el hogar?"
             />
@@ -751,11 +759,11 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
             </div>
           </section>
 
-          {/* SECCIÓN 8 – INFORMACIÓN COMPLEMENTARIA */}
+          {/* SECCIÓN 9 – INFORMACIÓN COMPLEMENTARIA */}
           <section>
             <SectionHeader
               icon={ClipboardList}
-              number={8}
+              number={9}
               label="Información complementaria"
               subtitle="Contexto adicional del caso"
             />
@@ -778,36 +786,6 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
             </div>
           </section>
 
-          {/* SECCIÓN 9 – MARKETING */}
-          <section>
-            <SectionHeader
-              icon={Search}
-              number={9}
-              label="¿Cómo nos conoció?"
-              subtitle="Canal de origen del lead"
-            />
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-              {['Redes sociales', 'Google', 'Recomendación', 'Publicidad', 'Otro'].map((op) => {
-                const selected = formData.como_nos_conocio.split(', ').filter(Boolean).includes(op);
-                return (
-                <button
-                  key={op}
-                  type="button"
-                  onClick={() => toggleSource(op)}
-                  className={`py-2.5 px-3 rounded-lg border text-sm font-medium transition text-center flex items-center justify-center gap-1.5 ${
-                    selected
-                      ? 'border-blue-500 bg-blue-50 text-blue-800'
-                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  {selected && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
-                  {op}
-                </button>
-                );
-              })}
-            </div>
-          </section>
-
           <HogaresRecomendados
             criteria={{
               ciudad: formData.ciudad_opcion === 'Otra' ? formData.ciudad_otra : formData.ciudad_opcion,
@@ -826,24 +804,54 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
             }}
           />
 
+          {/* SECCIÓN 10 – ¿CÓMO NOS CONOCIÓ? (opcional) */}
+          <section>
+            <SectionHeader
+              icon={Search}
+              number={10}
+              label="¿Cómo nos conoció?"
+              subtitle="Canal de origen del lead (opcional)"
+            />
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+              {['Redes sociales', 'Google', 'Recomendación', 'Publicidad', 'Otro'].map((op) => {
+                const selected = formData.como_nos_conocio.split(', ').filter(Boolean).includes(op);
+                return (
+                  <button
+                    key={op}
+                    type="button"
+                    onClick={() => toggleSource(op)}
+                    className={`py-2.5 px-3 rounded-lg border text-sm font-medium transition text-center flex items-center justify-center gap-1.5 ${
+                      selected
+                        ? 'border-blue-500 bg-blue-50 text-blue-800'
+                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {selected && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
+                    {op}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
               {error}
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+          <div className="flex items-center gap-3 pt-4 border-t border-gray-200 sticky bottom-0 bg-white sm:static sm:bg-transparent pb-safe">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium"
+              className="flex-1 sm:flex-none px-5 py-3.5 sm:py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition text-sm font-medium active:scale-95"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium shadow-sm"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3.5 sm:py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold shadow-sm active:scale-95"
             >
               <Save className="w-4 h-4" />
               {loading ? 'Guardando...' : 'Guardar Lead'}

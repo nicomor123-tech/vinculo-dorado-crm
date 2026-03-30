@@ -136,67 +136,71 @@ export function LeadsModule({ onCreateNew, onViewDetail, initialFilter }: LeadsM
   const hotCount = leads.filter(l => ['inmediato','urgente'].includes((l.urgencia??'').toLowerCase())).length;
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-3xl text-sage-900">Leads</h1>
-          <p className="text-sage-500 mt-1 text-sm">
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="font-display text-2xl sm:text-3xl text-sage-900">Leads</h1>
+          <p className="text-sage-500 mt-0.5 text-xs sm:text-sm truncate">
             {isEjecutivo ? 'Tus leads asignados' : 'Todos los leads · gestión comercial'}
             {hotCount > 0 && (
               <span className="ml-2 inline-flex items-center gap-1 text-red-600 font-semibold">
-                <Flame className="w-3.5 h-3.5" />
-                {hotCount} urgentes hoy
+                <Flame className="w-3 h-3" />
+                {hotCount} urgentes
               </span>
             )}
           </p>
         </div>
         <button
           onClick={onCreateNew}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-150 shadow-sm active:scale-95"
+          className="flex items-center gap-2 px-4 py-3 sm:px-5 sm:py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-150 shadow-sm active:scale-95 flex-shrink-0"
           style={{ background: 'linear-gradient(135deg, #3d653d, #315031)' }}
         >
           <Plus className="w-4 h-4" />
-          Nuevo Lead
+          <span className="hidden sm:inline">Nuevo Lead</span>
+          <span className="sm:hidden">Nuevo</span>
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-card border border-cream-200 p-5">
+      <div className="bg-white rounded-2xl shadow-card border border-cream-200 p-4 sm:p-5">
         {/* Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
+        <div className="space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 lg:grid-cols-5 sm:gap-3 mb-4">
           <div className="lg:col-span-2 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-sage-400 w-4 h-4" />
             <input
               type="text"
-              placeholder="Buscar nombre, teléfono, ciudad, diagnóstico..."
+              placeholder="Buscar nombre, teléfono, ciudad..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-xl border border-cream-300 text-sm text-sage-900 placeholder-sage-400 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:border-transparent bg-cream-50"
+              className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-cream-300 text-sm text-sage-900 placeholder-sage-400 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:border-transparent bg-cream-50"
             />
           </div>
-          <select
-            value={filterEstado}
-            onChange={e => setFilterEstado(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-cream-300 text-sm text-sage-800 focus:outline-none focus:ring-2 focus:ring-sage-400 bg-cream-50"
-          >
-            <option value="todos">Todas las etapas</option>
-            {PIPELINE_STAGES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-          <select
-            value={filterUrgencia}
-            onChange={e => setFilterUrgencia(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-cream-300 text-sm text-sage-800 focus:outline-none focus:ring-2 focus:ring-sage-400 bg-cream-50"
-          >
-            <option value="todos">Toda urgencia</option>
-            <option value="inmediato">🔥 Inmediato / Urgente</option>
-            <option value="semana_siguiente">⚡ Esta semana</option>
-            <option value="este_mes">📅 Este mes</option>
-            <option value="mas_de_un_mes">— Más de 1 mes</option>
-          </select>
+          <div className="grid grid-cols-2 sm:contents gap-2">
+            <select
+              value={filterEstado}
+              onChange={e => setFilterEstado(e.target.value)}
+              className="px-3 py-2.5 rounded-xl border border-cream-300 text-sm text-sage-800 focus:outline-none focus:ring-2 focus:ring-sage-400 bg-cream-50"
+            >
+              <option value="todos">Todas las etapas</option>
+              {PIPELINE_STAGES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+            <select
+              value={filterUrgencia}
+              onChange={e => setFilterUrgencia(e.target.value)}
+              className="px-3 py-2.5 rounded-xl border border-cream-300 text-sm text-sage-800 focus:outline-none focus:ring-2 focus:ring-sage-400 bg-cream-50"
+            >
+              <option value="todos">Toda urgencia</option>
+              <option value="inmediato">🔥 Inmediato</option>
+              <option value="semana_siguiente">⚡ Esta semana</option>
+              <option value="este_mes">📅 Este mes</option>
+              <option value="mas_de_un_mes">— +1 mes</option>
+            </select>
+          </div>
           {isAdmin && (
             <select
               value={filterEjecutivo}
               onChange={e => setFilterEjecutivo(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-cream-300 text-sm text-sage-800 focus:outline-none focus:ring-2 focus:ring-sage-400 bg-cream-50"
+              className="px-3 py-2.5 rounded-xl border border-cream-300 text-sm text-sage-800 focus:outline-none focus:ring-2 focus:ring-sage-400 bg-cream-50 sm:col-span-2 lg:col-span-1"
             >
               <option value="todos">Todos los ejecutivos</option>
               <option value="sin_asignar">Sin asignar</option>
@@ -207,13 +211,65 @@ export function LeadsModule({ onCreateNew, onViewDetail, initialFilter }: LeadsM
           )}
         </div>
 
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-xs text-sage-500 font-medium">
-            <span className="text-sage-800 font-bold">{filteredLeads.length}</span> de {leads.length} leads
-          </p>
+        <p className="text-xs text-sage-500 font-medium mb-3">
+          <span className="text-sage-800 font-bold">{filteredLeads.length}</span> de {leads.length} leads
+        </p>
+
+        {/* Mobile: card list */}
+        <div className="md:hidden space-y-2">
+          {filteredLeads.map((lead) => {
+            const isHot = ['inmediato','urgente'].includes((lead.urgencia??'').toLowerCase());
+            const ejNombre = getEjecutivoNombre(lead.ejecutivo_id);
+            return (
+              <div
+                key={lead.id}
+                onClick={() => onViewDetail(lead.id)}
+                className={`p-4 rounded-xl border cursor-pointer active:scale-[0.98] transition-all ${
+                  isHot ? 'border-red-200 bg-red-50/30' : 'border-cream-200 bg-cream-50'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sage-900 leading-tight">
+                      {lead.nombre_adulto_mayor || '(Sin nombre)'}
+                    </p>
+                    {lead.edad && (
+                      <p className="text-xs text-sage-400 mt-0.5">{lead.edad} años{lead.sexo ? ` · ${lead.sexo}` : ''}</p>
+                    )}
+                  </div>
+                  <StagePill estado={lead.estado} />
+                </div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Phone className="w-3.5 h-3.5 text-sage-400 flex-shrink-0" />
+                  <span className="text-sm text-sage-700 font-medium">{lead.nombre_contacto}</span>
+                  <span className="text-xs text-sage-400">· {lead.telefono_principal}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <UrgBadge urgencia={lead.urgencia} />
+                    {lead.ciudad && <span className="text-xs text-sage-400">{lead.ciudad}</span>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isAdmin && ejNombre && (
+                      <span className="text-xs text-sage-500">{ejNombre.split(' ')[0]}</span>
+                    )}
+                    <span className="text-sm font-semibold text-sage-800">{formatCurrency(lead.presupuesto_mensual)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {filteredLeads.length === 0 && (
+            <div className="text-center py-12">
+              <Filter className="w-8 h-8 text-sage-200 mx-auto mb-3" />
+              <p className="text-sage-500 font-medium">Sin resultados</p>
+              <p className="text-sm text-sage-400 mt-1">Ajusta los filtros</p>
+            </div>
+          )}
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Desktop: table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr>
@@ -276,7 +332,6 @@ export function LeadsModule({ onCreateNew, onViewDetail, initialFilter }: LeadsM
               })}
             </tbody>
           </table>
-
           {filteredLeads.length === 0 && (
             <div className="text-center py-16">
               <Filter className="w-10 h-10 text-sage-200 mx-auto mb-3" />
