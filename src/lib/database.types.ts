@@ -44,7 +44,7 @@ export interface Database {
       leads: {
         Row: {
           id: string
-          nombre_adulto_mayor: string
+          nombre_adulto_mayor: string | null
           edad: number | null
           sexo: string | null
           nombre_contacto: string
@@ -86,7 +86,7 @@ export interface Database {
         }
         Insert: {
           id?: string
-          nombre_adulto_mayor: string
+          nombre_adulto_mayor?: string | null
           edad?: number | null
           sexo?: string | null
           nombre_contacto: string

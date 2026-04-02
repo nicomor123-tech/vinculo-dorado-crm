@@ -307,8 +307,10 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
       setSavedSummary(buildSummary(formData));
     } catch (err: unknown) {
       console.error('Error creating lead:', err);
-      const msg = err instanceof Error ? err.message : (err as { message?: string })?.message;
-      setError(msg ? `Error: ${msg}` : 'Error al crear el lead. Por favor intenta de nuevo.');
+      const pgErr = err as { message?: string; details?: string; hint?: string; code?: string };
+      const msg = pgErr?.message || (err instanceof Error ? err.message : '');
+      const detail = pgErr?.details ? ` (${pgErr.details})` : '';
+      setError(msg ? `Error: ${msg}${detail}` : 'Error al crear el lead. Por favor intenta de nuevo.');
     } finally {
       setLoading(false);
     }
