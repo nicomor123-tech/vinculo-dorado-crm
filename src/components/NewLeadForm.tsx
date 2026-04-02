@@ -318,8 +318,8 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
 
   if (savedSummary !== null) {
     return (
-      <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto flex flex-col sm:items-start sm:justify-center sm:p-4">
-        <div className="bg-white sm:rounded-xl shadow-2xl w-full sm:max-w-2xl sm:my-16 flex-1 sm:flex-none">
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center overflow-y-auto p-0 sm:p-4">
+        <div className="bg-white sm:rounded-xl shadow-2xl w-full sm:max-w-2xl sm:my-8">
           <div className="px-6 pt-6 pb-2 flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
               <CheckCircle2 className="w-6 h-6 text-green-600" />
@@ -388,9 +388,9 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto flex flex-col sm:items-start sm:justify-center sm:p-4">
-      <div className="bg-white sm:rounded-xl shadow-2xl w-full sm:max-w-3xl sm:my-8 flex-1 sm:flex-none flex flex-col">
-        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200 sticky top-0 bg-white sm:rounded-t-xl z-10 flex-shrink-0">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center overflow-y-auto p-0 sm:p-4">
+      <div className="bg-white sm:rounded-xl shadow-2xl w-full sm:max-w-3xl sm:my-4 min-h-full sm:min-h-0 sm:max-h-[calc(100vh-2rem)] flex flex-col">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200 sm:rounded-t-xl bg-white flex-shrink-0">
           <div>
             <h2 className="text-lg sm:text-xl font-bold text-gray-900">Nuevo Lead</h2>
             <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">Sigue el guión de ventas para capturar la información</p>
@@ -842,24 +842,29 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
             </div>
           )}
 
-          <div className="flex items-center gap-3 pt-4 border-t border-gray-200 sticky bottom-0 bg-white sm:static sm:bg-transparent pb-safe">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 sm:flex-none px-5 py-3.5 sm:py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition text-sm font-medium active:scale-95"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3.5 sm:py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold shadow-sm active:scale-95"
-            >
-              <Save className="w-4 h-4" />
-              {loading ? 'Guardando...' : 'Guardar Lead'}
-            </button>
-          </div>
         </form>
+
+        <div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-t border-gray-200 bg-white sm:rounded-b-xl flex-shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 sm:flex-none px-5 py-3.5 sm:py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition text-sm font-medium active:scale-95"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              const form = (e.target as HTMLElement).closest('.flex.flex-col')?.querySelector('form');
+              if (form) form.requestSubmit();
+            }}
+            disabled={loading}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3.5 sm:py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold shadow-sm active:scale-95"
+          >
+            <Save className="w-4 h-4" />
+            {loading ? 'Guardando...' : 'Guardar Lead'}
+          </button>
+        </div>
       </div>
     </div>
   );
