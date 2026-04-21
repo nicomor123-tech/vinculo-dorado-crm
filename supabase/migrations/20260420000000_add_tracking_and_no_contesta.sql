@@ -1,0 +1,1 @@
+﻿-- Applied manually in Supabase SQL Editor on 21-apr-2026. See CORRER_NO_CONTESTA.sql in Downloads for original content.
