@@ -93,13 +93,16 @@ export function LeadsModule({ onCreateNew, onViewDetail, initialFilter }: LeadsM
     let f = [...leads];
     if (searchTerm) {
       const s = searchTerm.toLowerCase();
-      f = f.filter(l =>
-        l.nombre_adulto_mayor.toLowerCase().includes(s) ||
-        l.nombre_contacto.toLowerCase().includes(s) ||
-        (l.telefono_principal || '').includes(s) ||
-        (l.ciudad || '').toLowerCase().includes(s) ||
-        (l.diagnosticos || '').toLowerCase().includes(s)
-      );
+      const sNumeric = s.replace(/\D/g, '');
+      f = f.filter(l => {
+        const nAdulto = (l.nombre_adulto_mayor || '').toLowerCase();
+        const nContacto = (l.nombre_contacto || '').toLowerCase();
+        const tel = (l.telefono_principal || '').replace(/\D/g, '');
+        const ciudad = (l.ciudad || '').toLowerCase();
+        const diag = (l.diagnosticos || '').toLowerCase();
+        const telMatch = sNumeric.length >= 3 && tel.includes(sNumeric);
+        return nAdulto.includes(s) || nContacto.includes(s) || ciudad.includes(s) || diag.includes(s) || telMatch;
+      });
     }
     if (filterEstado !== 'todos') f = f.filter(l => l.estado === filterEstado);
     if (filterUrgencia !== 'todos') {
