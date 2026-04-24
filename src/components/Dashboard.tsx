@@ -102,15 +102,15 @@ export function Dashboard({ onNavigateToLeads, onViewLead }: DashboardProps) {
     );
   }
 
-  const activeLeads = leads.filter(l => !['cierre_ganado', 'cierre_perdido'].includes(l.estado));
+  const activeLeads = leads.filter(l => !['cierre_ganado', 'cierre_perdido', 'fallecido'].includes(l.estado));
   const wonLeads = leads.filter(l => l.estado === 'cierre_ganado');
   const hotLeads = leads.filter(l => ['inmediato', 'urgente'].includes((l.urgencia ?? '').toLowerCase()));
-  const totalActive = leads.filter(l => l.estado !== 'cierre_perdido').length;
+  const totalActive = leads.filter(l => !['cierre_perdido', 'fallecido'].includes(l.estado)).length;
   const conversionRate = leads.length > 0 ? Math.round((wonLeads.length / leads.length) * 100) : 0;
 
   // Recent leads needing attention (hot + no recent activity)
   const attentionLeads = leads
-    .filter(l => !['cierre_ganado', 'cierre_perdido'].includes(l.estado))
+    .filter(l => !['cierre_ganado', 'cierre_perdido', 'fallecido'].includes(l.estado))
     .sort((a, b) => {
       const urgOrder = ['inmediato', 'urgente', 'alta', 'semana_siguiente', 'media', 'este_mes', 'baja', 'mas_de_un_mes'];
       return urgOrder.indexOf(a.urgencia ?? '') - urgOrder.indexOf(b.urgencia ?? '');
@@ -291,7 +291,7 @@ export function Dashboard({ onNavigateToLeads, onViewLead }: DashboardProps) {
               <div className="space-y-2">
                 {ejecutivos.slice(0, 4).map((ej) => {
                   const ejLeads = leads.filter(l => l.ejecutivo_id === ej.id);
-                  const ejActivos = ejLeads.filter(l => !['cierre_ganado', 'cierre_perdido'].includes(l.estado)).length;
+                  const ejActivos = ejLeads.filter(l => !['cierre_ganado', 'cierre_perdido', 'fallecido'].includes(l.estado)).length;
                   const ejGanados = ejLeads.filter(l => l.estado === 'cierre_ganado').length;
                   const ini = ej.nombre_completo.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
                   return (

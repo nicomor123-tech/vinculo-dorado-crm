@@ -13,8 +13,11 @@ interface LeadTasksProps {
 }
 
 function formatDate(dateString: string | null) {
-  if (!dateString) return null;
-  return new Date(dateString + 'T00:00:00').toLocaleDateString('es-CO', {
+  if (!dateString) return 'Fecha no disponible';
+  const iso = dateString.includes('T') ? dateString : dateString + 'T00:00:00';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return 'Fecha no disponible';
+  return d.toLocaleDateString('es-CO', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -23,7 +26,10 @@ function formatDate(dateString: string | null) {
 
 function isOverdue(fechaVencimiento: string | null) {
   if (!fechaVencimiento) return false;
-  return new Date(fechaVencimiento + 'T23:59:59') < new Date();
+  const iso = fechaVencimiento.includes('T') ? fechaVencimiento : fechaVencimiento + 'T23:59:59';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return false;
+  return d < new Date();
 }
 
 export function LeadTasks({ leadId, tasks, onTasksChanged }: LeadTasksProps) {
@@ -114,7 +120,7 @@ export function LeadTasks({ leadId, tasks, onTasksChanged }: LeadTasksProps) {
           <div>
             <label className="block text-xs text-gray-600 mb-1">Fecha de vencimiento</label>
             <input
-              type="date"
+              type="datetime-local"
               value={form.fecha_vencimiento}
               onChange={(e) => setForm({ ...form, fecha_vencimiento: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"

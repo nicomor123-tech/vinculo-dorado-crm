@@ -249,22 +249,22 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
       setError('El teléfono principal es requerido.');
       return;
     }
+    if (!user) {
+      alert('Sesión expirada, recarga la página');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
       const asesorId = isValidUUID(profile?.id) ? profile!.id : null;
 
-      // Auto-assign first active ejecutivo_comercial
+      // Auto-assign based on role. If profile is null, assume ejecutivo_comercial (safe fallback).
+      const rol = profile?.rol ?? 'ejecutivo_comercial';
       let ejecutivoId: string | null = null;
-      const { data: primerEjecutivo } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('rol', 'ejecutivo_comercial')
-        .eq('activo', true)
-        .order('nombre_completo')
-        .limit(1)
-        .maybeSingle();
-      if (primerEjecutivo?.id) ejecutivoId = primerEjecutivo.id;
+      if (rol === 'ejecutivo_comercial') {
+        ejecutivoId = user.id;
+      }
+      // if 'administrador' → stays null (admins asignan después)
 
       const { error: insertError } = await supabase.from('leads').insert([{
         nombre_adulto_mayor: formData.nombre_adulto_mayor || null,
@@ -280,7 +280,7 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
         zona_localidad: formData.zona_localidad || null,
         presupuesto_rango: formData.presupuesto_rango || null,
         presupuesto_mensual: getPresupuestoValor(),
-        urgencia: formData.urgencia,
+        urgencia: formData.urgencia || 'media',
         tipo_habitacion: formData.tipo_habitacion || null,
         tipo_bano: formData.tipo_bano || null,
         fecha_ingreso_estimada: formData.fecha_ingreso_estimada || null,
@@ -302,12 +302,18 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
         estado: 'lead_nuevo',
         asesor_id: asesorId,
         ejecutivo_id: ejecutivoId,
+        fecha_asignacion: ejecutivoId ? new Date().toISOString() : null,
       }]);
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('Insert error:', insertError);
+        alert(`Error: ${insertError.message}`);
+        return;
+      }
       setSavedSummary(buildSummary(formData));
     } catch (err: unknown) {
       console.error('Error creating lead:', err);
       const msg = err instanceof Error ? err.message : (err as { message?: string })?.message;
+      alert(`Error: ${msg ?? 'No se pudo crear el lead'}`);
       setError(msg ? `Error: ${msg}` : 'Error al crear el lead. Por favor intenta de nuevo.');
     } finally {
       setLoading(false);

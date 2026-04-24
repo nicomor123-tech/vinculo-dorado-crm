@@ -4,8 +4,10 @@ export const PIPELINE_STAGES = [
   { value: 'hogares_propuestos', label: 'Hogares propuestos' },
   { value: 'visitas_programadas', label: 'Visitas programadas' },
   { value: 'en_decision_familiar', label: 'En decisión familiar' },
+  { value: 'escalado_nico', label: 'Escalar a Nicolás' },
   { value: 'cierre_ganado', label: 'Cierre ganado' },
   { value: 'cierre_perdido', label: 'Cierre perdido' },
+  { value: 'fallecido', label: 'Fallecido' },
 ] as const;
 
 export type PipelineStage = typeof PIPELINE_STAGES[number]['value'];
@@ -16,8 +18,10 @@ export const STAGE_COLORS: Record<string, string> = {
   hogares_propuestos:   'bg-blue-100 text-blue-800',
   visitas_programadas:  'bg-sky-100 text-sky-800',
   en_decision_familiar: 'bg-violet-100 text-violet-800',
+  escalado_nico:        'bg-amber-200 text-amber-900',
   cierre_ganado:        'bg-emerald-100 text-emerald-800',
   cierre_perdido:       'bg-gray-100 text-gray-500',
+  fallecido:            'bg-slate-100 text-slate-700',
 };
 
 export const STAGE_BORDER_COLORS: Record<string, string> = {
@@ -26,8 +30,10 @@ export const STAGE_BORDER_COLORS: Record<string, string> = {
   hogares_propuestos:   'border-blue-500',
   visitas_programadas:  'border-sky-500',
   en_decision_familiar: 'border-violet-400',
+  escalado_nico:        'border-amber-600',
   cierre_ganado:        'border-emerald-500',
   cierre_perdido:       'border-gray-400',
+  fallecido:            'border-slate-400',
 };
 
 export const STAGE_ACCENT_COLORS: Record<string, string> = {
@@ -36,8 +42,10 @@ export const STAGE_ACCENT_COLORS: Record<string, string> = {
   hogares_propuestos:   'bg-blue-500',
   visitas_programadas:  'bg-sky-500',
   en_decision_familiar: 'bg-violet-500',
+  escalado_nico:        'bg-amber-600',
   cierre_ganado:        'bg-emerald-500',
   cierre_perdido:       'bg-gray-400',
+  fallecido:            'bg-slate-500',
 };
 
 export const STAGE_DOT_COLORS: Record<string, string> = {
@@ -46,8 +54,10 @@ export const STAGE_DOT_COLORS: Record<string, string> = {
   hogares_propuestos:   'bg-blue-500',
   visitas_programadas:  'bg-sky-500',
   en_decision_familiar: 'bg-violet-500',
+  escalado_nico:        'bg-amber-600',
   cierre_ganado:        'bg-emerald-500',
   cierre_perdido:       'bg-gray-400',
+  fallecido:            'bg-slate-500',
 };
 
 export const STAGE_STRONG_COLORS: Record<string, { bg: string; text: string; border: string; ring: string }> = {
@@ -56,8 +66,10 @@ export const STAGE_STRONG_COLORS: Record<string, { bg: string; text: string; bor
   hogares_propuestos:   { bg: 'bg-blue-600',    text: 'text-white', border: 'border-blue-700',    ring: 'ring-blue-300' },
   visitas_programadas:  { bg: 'bg-sky-500',     text: 'text-white', border: 'border-sky-600',     ring: 'ring-sky-300' },
   en_decision_familiar: { bg: 'bg-violet-500',  text: 'text-white', border: 'border-violet-600',  ring: 'ring-violet-300' },
+  escalado_nico:        { bg: 'bg-amber-700',   text: 'text-white', border: 'border-amber-800',   ring: 'ring-amber-400' },
   cierre_ganado:        { bg: 'bg-emerald-600', text: 'text-white', border: 'border-emerald-700', ring: 'ring-emerald-300' },
   cierre_perdido:       { bg: 'bg-gray-500',    text: 'text-white', border: 'border-gray-600',    ring: 'ring-gray-300' },
+  fallecido:            { bg: 'bg-slate-200',   text: 'text-slate-800', border: 'border-slate-500', ring: 'ring-slate-300' },
 };
 
 export const STAGE_GROUP: Record<string, 'followup' | 'active' | 'decision' | 'won' | 'lost'> = {
@@ -66,8 +78,10 @@ export const STAGE_GROUP: Record<string, 'followup' | 'active' | 'decision' | 'w
   hogares_propuestos:   'active',
   visitas_programadas:  'active',
   en_decision_familiar: 'decision',
+  escalado_nico:        'decision',
   cierre_ganado:        'won',
   cierre_perdido:       'lost',
+  fallecido:            'lost',
 };
 
 export function getStageLabel(estado: string): string {

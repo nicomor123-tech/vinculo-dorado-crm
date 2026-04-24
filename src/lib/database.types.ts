@@ -81,6 +81,7 @@ export interface Database {
           dieta_blanda: boolean
           fecha_ingreso_estimada: string | null
           tipo_bano: string | null
+          fecha_asignacion: string | null
           created_at: string
           updated_at: string
         }
@@ -123,6 +124,7 @@ export interface Database {
           dieta_blanda?: boolean
           fecha_ingreso_estimada?: string | null
           tipo_bano?: string | null
+          fecha_asignacion?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -165,6 +167,7 @@ export interface Database {
           dieta_blanda?: boolean
           fecha_ingreso_estimada?: string | null
           tipo_bano?: string | null
+          fecha_asignacion?: string | null
           created_at?: string
           updated_at?: string
         }

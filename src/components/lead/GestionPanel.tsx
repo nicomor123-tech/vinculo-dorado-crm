@@ -12,6 +12,7 @@ interface GestionPanelProps {
   leadData?: {
     ejecutivo_id: string | null;
     presupuesto_mensual: number | null;
+    urgencia: string;
   };
 }
 
@@ -28,7 +29,7 @@ const TIPO_OPTIONS = [
 ];
 
 export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: GestionPanelProps) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -39,6 +40,19 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
     proximaFecha: '',
     proximaAccion: '',
   });
+
+  const [urgencia, setUrgencia] = useState<string>(leadData?.urgencia ?? 'media');
+
+  const handleUrgenciaChange = async (nueva: string) => {
+    const anterior = urgencia;
+    setUrgencia(nueva);
+    const { error } = await supabase.from('leads').update({ urgencia: nueva }).eq('id', leadId);
+    if (error) {
+      console.error('Error updating urgencia:', error);
+      alert(`Error: ${error.message}`);
+      setUrgencia(anterior);
+    }
+  };
 
   // Commission form — shown when cierre_ganado is selected
   const [comisionForm, setComisionForm] = useState({
@@ -214,7 +228,9 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
               onChange={(e) => setForm({ ...form, nuevaEtapa: e.target.value })}
               className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
             >
-              {PIPELINE_STAGES.map((s) => (
+              {PIPELINE_STAGES
+                .filter(s => s.value !== 'escalado_nico' || profile?.rol === 'ejecutivo_comercial')
+                .map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}
                 </option>
@@ -253,6 +269,22 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
               ))}
             </div>
           </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">
+            Urgencia
+          </label>
+          <select
+            value={urgencia}
+            onChange={(e) => handleUrgenciaChange(e.target.value)}
+            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+          >
+            <option value="inmediato">Inmediato</option>
+            <option value="alta">Alta</option>
+            <option value="media">Media</option>
+            <option value="baja">Baja</option>
+          </select>
         </div>
 
         <div>
@@ -359,7 +391,7 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
                 Fecha de próximo contacto
               </label>
               <input
-                type="date"
+                type="datetime-local"
                 value={form.proximaFecha}
                 onChange={(e) => setForm({ ...form, proximaFecha: e.target.value })}
                 className="w-full px-3 py-2 border border-blue-200 bg-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"

@@ -69,8 +69,11 @@ function getContactabilityStatus(date: string | null): 'overdue' | 'today' | 'fu
 }
 
 function formatDate(dateString: string | null, opts?: Intl.DateTimeFormatOptions) {
-  if (!dateString) return null;
-  return new Date(dateString + 'T00:00:00').toLocaleDateString('es-CO', opts ?? {
+  if (!dateString) return 'Fecha no disponible';
+  const iso = dateString.includes('T') ? dateString : dateString + 'T00:00:00';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return 'Fecha no disponible';
+  return d.toLocaleDateString('es-CO', opts ?? {
     year: 'numeric', month: 'long', day: 'numeric',
   });
 }
@@ -451,7 +454,7 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
               leadId={leadId}
               estadoActual={lead.estado}
               onSaved={loadLeadData}
-              leadData={{ ejecutivo_id: lead.ejecutivo_id, presupuesto_mensual: lead.presupuesto_mensual }}
+              leadData={{ ejecutivo_id: lead.ejecutivo_id, presupuesto_mensual: lead.presupuesto_mensual, urgencia: lead.urgencia }}
             />
 
             <div className={`bg-white rounded-xl shadow-sm border border-gray-100 border-l-4 ${stageBorder} p-6`}>

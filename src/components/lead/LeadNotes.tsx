@@ -53,8 +53,11 @@ function formatFullDate(dateString: string): string {
 }
 
 function formatDate(dateString: string | null) {
-  if (!dateString) return null;
-  return new Date(dateString).toLocaleDateString('es-CO', {
+  if (!dateString) return 'Fecha no disponible';
+  const iso = dateString.includes('T') ? dateString : dateString + 'T00:00:00';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return 'Fecha no disponible';
+  return d.toLocaleDateString('es-CO', {
     year: 'numeric', month: 'long', day: 'numeric',
   });
 }

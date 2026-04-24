@@ -17,8 +17,10 @@ const STAGE_STYLES: Record<string, { header: string; dot: string; light: string 
   hogares_propuestos:   { header: '#2e9d93', dot: '#237e76', light: '#effaf8' },
   visitas_programadas:  { header: '#237e76', dot: '#1f6560', light: '#d7f3ee' },
   en_decision_familiar: { header: '#507f50', dot: '#3d653d', light: '#e6ede6' },
+  escalado_nico:        { header: '#d97706', dot: '#b45309', light: '#fffbeb' },
   cierre_ganado:        { header: '#315031', dot: '#213521', light: '#ccdccc' },
   cierre_perdido:       { header: '#9ca3af', dot: '#6b7280', light: '#f9fafb' },
+  fallecido:            { header: '#94a3b8', dot: '#64748b', light: '#f8fafc' },
 };
 
 const URGENCIA_CONFIG: Record<string, { label: string; icon: typeof Zap; cls: string }> = {
@@ -100,7 +102,7 @@ export function KanbanView({ onViewDetail }: KanbanViewProps) {
     );
   }
 
-  const visibleStages = PIPELINE_STAGES.filter(s => s.value !== 'cierre_perdido');
+  const visibleStages = PIPELINE_STAGES.filter(s => !['cierre_perdido', 'fallecido'].includes(s.value));
 
   return (
     <div className="space-y-4">
