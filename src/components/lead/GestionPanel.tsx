@@ -33,6 +33,17 @@ const TIPO_OPTIONS = [
 
 const noRequiereProximoContacto = ['no_contesta', 'cierre_ganado', 'cierre_perdido', 'fallecido'];
 
+const ACCION_OPTIONS = [
+  'Llamar para confirmar visita',
+  'Llamar para seguimiento',
+  'Volver a llamar',
+  'Programar visita',
+  'Llamar para el pago',
+  'Enviar propuesta',
+  'Enviar hogares recomendados',
+  'Enviar WhatsApp de seguimiento',
+];
+
 interface IntentoRow {
   id: string;
   fecha: string;
@@ -70,6 +81,9 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
   const [intentos, setIntentos] = useState<IntentoRow[]>([]);
   const [intentosCount, setIntentosCount] = useState<number>(0);
   const [registrandoIntento, setRegistrandoIntento] = useState(false);
+
+  // Dropdown "Acción a realizar" — modo preset vs "Otro"
+  const [accionOtro, setAccionOtro] = useState(false);
 
   const showIntentosPanel = form.nuevaEtapa === 'no_contesta';
   const ocultarProximoContacto = noRequiereProximoContacto.includes(form.nuevaEtapa);
@@ -329,6 +343,7 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
       });
       setRazonEscalacion('');
       setErrorEscalacion('');
+      setAccionOtro(false);
       setComisionForm({ valor_primer_mes: '', porcentaje_vinculo: '40', hogar_id: '' });
 
       setSaved(true);
@@ -568,13 +583,36 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
               <label className="block text-xs font-medium text-blue-700 mb-1">
                 Acción a realizar
               </label>
-              <input
-                type="text"
-                value={form.proximaAccion}
-                onChange={(e) => setForm({ ...form, proximaAccion: e.target.value })}
-                placeholder="Ej: Llamar para confirmar visita"
+              <select
+                value={accionOtro ? '__otro__' : form.proximaAccion}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '__otro__') {
+                    setAccionOtro(true);
+                    setForm({ ...form, proximaAccion: '' });
+                  } else {
+                    setAccionOtro(false);
+                    setForm({ ...form, proximaAccion: v });
+                  }
+                }}
                 className="w-full px-3 py-2 border border-blue-200 bg-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+              >
+                <option value="">Seleccionar acción</option>
+                {ACCION_OPTIONS.map((op) => (
+                  <option key={op} value={op}>{op}</option>
+                ))}
+                <option value="__otro__">Otro (escribir)</option>
+              </select>
+              {accionOtro && (
+                <input
+                  type="text"
+                  autoFocus
+                  value={form.proximaAccion}
+                  onChange={(e) => setForm({ ...form, proximaAccion: e.target.value })}
+                  placeholder="Escribí la acción a realizar"
+                  className="w-full mt-2 px-3 py-2 border border-blue-300 bg-white rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-blue-700 mb-1">
