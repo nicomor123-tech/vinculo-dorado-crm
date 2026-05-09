@@ -4,6 +4,7 @@ import {
   MapPin, Phone, User, Heart, Home, Calendar, Banknote, Search, Check,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { notificar } from '../lib/telegram';
 import { useAuth } from '../contexts/AuthContext';
 import { HogaresRecomendados } from './HogaresRecomendados';
 
@@ -266,7 +267,7 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
       }
       // if 'administrador' → stays null (admins asignan después)
 
-      const { error: insertError } = await supabase.from('leads').insert([{
+      const { data: insertedRows, error: insertError } = await supabase.from('leads').insert([{
         nombre_adulto_mayor: formData.nombre_adulto_mayor || null,
         edad: formData.edad ? parseInt(formData.edad) : null,
         sexo: formData.sexo || null,
@@ -303,12 +304,31 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
         asesor_id: asesorId,
         ejecutivo_id: ejecutivoId,
         fecha_asignacion: ejecutivoId ? new Date().toISOString() : null,
-      }]);
+      }]).select('id').limit(1);
       if (insertError) {
         console.error('Insert error:', insertError);
         alert(`Error: ${insertError.message}`);
         return;
       }
+
+      const nuevoLeadId = insertedRows?.[0]?.id;
+      if (nuevoLeadId) {
+        const presupuestoValor = getPresupuestoValor();
+        const presupuestoTxt = presupuestoValor != null
+          ? new Intl.NumberFormat('es-CO').format(presupuestoValor) + ' COP'
+          : (formData.presupuesto_rango || 'no especificado');
+        const mensaje =
+          `🆕 <b>Lead nuevo creado</b>\n\n` +
+          `👤 ${formData.nombre_contacto}\n` +
+          `📞 ${formData.telefono_principal}\n` +
+          `📍 ${getCiudad() || '—'}\n` +
+          `💰 Presupuesto: ${presupuestoTxt}\n` +
+          `⏱️ Urgencia: ${formData.urgencia}\n` +
+          `👩‍💼 Creado por: ${profile?.nombre_completo ?? user.email ?? '—'}\n\n` +
+          `🔗 Ver lead: https://crm.vinculodorado.co/leads/${nuevoLeadId}`;
+        notificar([2094733004, 1145747754], mensaje);
+      }
+
       setSavedSummary(buildSummary(formData));
     } catch (err: unknown) {
       console.error('Error creating lead:', err);

@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { PIPELINE_STAGES, getStageLabel, getStageStrongColor } from '../../lib/pipeline';
 import { createStageTask } from '../../lib/stageTaskAutomation';
+import { notificar } from '../../lib/telegram';
 
 interface GestionPanelProps {
   leadId: string;
@@ -13,6 +14,8 @@ interface GestionPanelProps {
     ejecutivo_id: string | null;
     presupuesto_mensual: number | null;
     urgencia: string;
+    nombre_contacto: string;
+    telefono_principal: string;
   };
 }
 
@@ -42,6 +45,9 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
   });
 
   const [urgencia, setUrgencia] = useState<string>(leadData?.urgencia ?? 'media');
+
+  const [razonEscalacion, setRazonEscalacion] = useState('');
+  const [errorEscalacion, setErrorEscalacion] = useState('');
 
   const handleUrgenciaChange = async (nueva: string) => {
     const anterior = urgencia;
@@ -103,6 +109,14 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
     if (!user) return;
     if (!form.nota.trim() && !etapaCambiada) return;
 
+    if (etapaCambiada && form.nuevaEtapa === 'escalado_nico') {
+      if (razonEscalacion.trim().length < 10) {
+        setErrorEscalacion('La razón de la escalación es obligatoria (mínimo 10 caracteres).');
+        return;
+      }
+    }
+    setErrorEscalacion('');
+
     setSaving(true);
     try {
       const ops: Promise<unknown>[] = [];
@@ -127,6 +141,18 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
             metadata: { old: estadoActual, new: form.nuevaEtapa },
           })
         );
+
+        if (form.nuevaEtapa === 'escalado_nico') {
+          ops.push(
+            supabase.from('activity_log').insert({
+              lead_id: leadId,
+              user_id: user.id,
+              tipo: 'escalacion',
+              descripcion: razonEscalacion.trim(),
+              metadata: { razon: razonEscalacion.trim() },
+            })
+          );
+        }
 
         ops.push(createStageTask(leadId, user.id, form.nuevaEtapa));
       }
@@ -187,6 +213,17 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
 
       await Promise.all(ops);
 
+      if (etapaCambiada && form.nuevaEtapa === 'escalado_nico') {
+        const mensaje =
+          `🚨 <b>Lead escalado a Nicolás</b>\n\n` +
+          `👤 Lead: ${leadData?.nombre_contacto ?? '—'}\n` +
+          `📞 Tel: ${leadData?.telefono_principal ?? '—'}\n` +
+          `👩‍💼 Escaló: ${profile?.nombre_completo ?? user.email ?? '—'}\n` +
+          `📝 Razón: ${razonEscalacion.trim()}\n\n` +
+          `🔗 Ver lead: https://crm.vinculodorado.co/leads/${leadId}`;
+        notificar([2094733004], mensaje);
+      }
+
       setForm({
         nuevaEtapa: form.nuevaEtapa,
         tipoSeguimiento: 'llamada',
@@ -194,6 +231,8 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
         proximaFecha: '',
         proximaAccion: '',
       });
+      setRazonEscalacion('');
+      setErrorEscalacion('');
       setComisionForm({ valor_primer_mes: '', porcentaje_vinculo: '40', hogar_id: '' });
 
       setSaved(true);
@@ -243,6 +282,22 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
                 </span>
                 <ArrowRight className="w-3 h-3 text-gray-400" />
                 <span className="text-xs text-blue-600 font-semibold">se guardará al registrar</span>
+              </div>
+            )}
+
+            {etapaCambiada && form.nuevaEtapa === 'escalado_nico' && (
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <label className="block text-xs font-semibold text-amber-800 mb-1.5 uppercase tracking-wide">
+                  Razón de la escalación <span className="text-red-600">*</span>
+                </label>
+                <textarea
+                  value={razonEscalacion}
+                  onChange={(e) => { setRazonEscalacion(e.target.value); if (errorEscalacion) setErrorEscalacion(''); }}
+                  placeholder="¿Por qué necesitás que Nicolás revise este lead?"
+                  rows={3}
+                  className="w-full px-3 py-2 border border-amber-300 bg-white rounded-lg text-sm focus:ring-2 focus:ring-amber-400 focus:border-transparent resize-none"
+                />
+                <p className="text-xs text-amber-700 mt-1">Mínimo 10 caracteres. Se le notificará a Nicolás por Telegram.</p>
               </div>
             )}
           </div>
@@ -417,6 +472,9 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
           )}
           {!canSave && (
             <span className="text-xs text-gray-400">Escribe una nota o cambia la etapa para registrar</span>
+          )}
+          {errorEscalacion && (
+            <span className="text-xs text-red-600 font-semibold w-full">{errorEscalacion}</span>
           )}
         </div>
       </div>

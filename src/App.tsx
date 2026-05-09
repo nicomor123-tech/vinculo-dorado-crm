@@ -18,10 +18,13 @@ import { ComisionesModule } from './components/ComisionesModule';
 const proposalMatch = window.location.pathname.match(/^\/propuesta\/([^/]+)/);
 const PUBLIC_PROPOSAL_ID = proposalMatch ? proposalMatch[1] : null;
 
+const leadMatch = window.location.pathname.match(/^\/leads\/([^/]+)/);
+const INITIAL_LEAD_ID = leadMatch ? leadMatch[1] : null;
+
 function AppContent() {
   const { user, loading } = useAuth();
-  const [currentView, setCurrentView] = useState('dashboard');
-  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const [currentView, setCurrentView] = useState(INITIAL_LEAD_ID ? 'leads' : 'dashboard');
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(INITIAL_LEAD_ID);
   const [selectedHogarId, setSelectedHogarId] = useState<string | null>(null);
   const [showNewLeadForm, setShowNewLeadForm] = useState(false);
   const [showNewHogarForm, setShowNewHogarForm] = useState(false);
