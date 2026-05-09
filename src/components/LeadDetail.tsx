@@ -168,6 +168,95 @@ function InlineEditField({
   );
 }
 
+interface InlineEditableNameProps {
+  value: string;
+  leadId: string;
+  fieldName: 'nombre_adulto_mayor' | 'nombre_contacto';
+  onSaved: () => void;
+  inputClassName?: string;
+  placeholder?: string;
+}
+
+function InlineEditableName({ value, leadId, fieldName, onSaved, inputClassName, placeholder }: InlineEditableNameProps) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { setDraft(value); }, [value]);
+
+  const commit = async () => {
+    if (saving) return;
+    const trimmed = draft.trim();
+    if (!trimmed) {
+      setDraft(value);
+      setEditing(false);
+      return;
+    }
+    if (trimmed === value) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase
+      .from('leads')
+      .update({ [fieldName]: trimmed, updated_at: new Date().toISOString() })
+      .eq('id', leadId);
+    setSaving(false);
+    if (error) {
+      console.error('Error saving inline edit:', error);
+      alert(`Error: ${error.message}`);
+      setDraft(value);
+    } else {
+      onSaved();
+    }
+    setEditing(false);
+  };
+
+  const cancel = () => {
+    setDraft(value);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <input
+        type="text"
+        autoFocus
+        value={draft}
+        disabled={saving}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); commit(); }
+          else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+        }}
+        placeholder={placeholder}
+        className={`bg-yellow-50 border border-yellow-400 rounded px-1.5 outline-none focus:ring-2 focus:ring-yellow-400 min-w-[200px] ${inputClassName ?? ''}`}
+      />
+    );
+  }
+
+  return (
+    <>
+      <span
+        onClick={() => setEditing(true)}
+        title="Click para editar"
+        className="cursor-text hover:bg-yellow-50 rounded px-0.5"
+      >
+        {value || <span className="text-gray-400 italic">{placeholder ?? 'sin nombre'}</span>}
+      </span>
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className="ml-1.5 inline-flex p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition align-middle"
+        title="Editar"
+      >
+        <Pencil className="w-3.5 h-3.5" />
+      </button>
+    </>
+  );
+}
+
 export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
   const { user, isAdmin } = useAuth();
   const [lead, setLead] = useState<Lead | null>(null);
@@ -326,7 +415,16 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
           </button>
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-1">
-              <h1 className="text-2xl font-bold text-gray-900 leading-tight">{lead.nombre_adulto_mayor}</h1>
+              <h1 className="text-2xl font-bold text-gray-900 leading-tight inline-flex items-center">
+                <InlineEditableName
+                  value={lead.nombre_adulto_mayor}
+                  leadId={leadId}
+                  fieldName="nombre_adulto_mayor"
+                  onSaved={loadLeadData}
+                  inputClassName="text-2xl font-bold text-gray-900"
+                  placeholder="Nombre del adulto mayor"
+                />
+              </h1>
               <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold border ${stageStrong.bg} ${stageStrong.text} ${stageStrong.border}`}>
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 opacity-70 ${lightDot}`} />
                 {getStageLabel(lead.estado)}
@@ -338,10 +436,17 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
                 </span>
               )}
             </div>
-            <p className="text-sm text-gray-500">
-              {lead.nombre_contacto}
-              {lead.parentesco ? ` · ${lead.parentesco}` : ''}
-              {' · '}Registrado {formatDate(lead.created_at, { month: 'short', day: 'numeric', year: 'numeric' })}
+            <p className="text-sm text-gray-500 inline-flex items-center flex-wrap">
+              <InlineEditableName
+                value={lead.nombre_contacto}
+                leadId={leadId}
+                fieldName="nombre_contacto"
+                onSaved={loadLeadData}
+                inputClassName="text-sm"
+                placeholder="Nombre del contacto"
+              />
+              {lead.parentesco ? <span className="ml-1">· {lead.parentesco}</span> : null}
+              <span className="ml-1">· Registrado {formatDate(lead.created_at, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
             </p>
           </div>
         </div>
