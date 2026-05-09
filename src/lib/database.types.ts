@@ -82,6 +82,8 @@ export interface Database {
           fecha_ingreso_estimada: string | null
           tipo_bano: string | null
           fecha_asignacion: string | null
+          intentos_fallidos: number
+          ultimo_intento_fallido: string | null
           created_at: string
           updated_at: string
         }
@@ -125,6 +127,8 @@ export interface Database {
           fecha_ingreso_estimada?: string | null
           tipo_bano?: string | null
           fecha_asignacion?: string | null
+          intentos_fallidos?: number
+          ultimo_intento_fallido?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -168,8 +172,33 @@ export interface Database {
           fecha_ingreso_estimada?: string | null
           tipo_bano?: string | null
           fecha_asignacion?: string | null
+          intentos_fallidos?: number
+          ultimo_intento_fallido?: string | null
           created_at?: string
           updated_at?: string
+        }
+      }
+      intentos_contacto: {
+        Row: {
+          id: string
+          lead_id: string | null
+          user_id: string | null
+          fecha: string
+          notas: string | null
+        }
+        Insert: {
+          id?: string
+          lead_id?: string | null
+          user_id?: string | null
+          fecha?: string
+          notas?: string | null
+        }
+        Update: {
+          id?: string
+          lead_id?: string | null
+          user_id?: string | null
+          fecha?: string
+          notas?: string | null
         }
       }
       hogares: {
