@@ -1,6 +1,7 @@
 export const PIPELINE_STAGES = [
   { value: 'lead_nuevo', label: 'Lead nuevo' },
   { value: 'lead_calificado', label: 'Lead calificado' },
+  { value: 'no_contesta', label: 'No contesta' },
   { value: 'hogares_propuestos', label: 'Hogares propuestos' },
   { value: 'visitas_programadas', label: 'Visitas programadas' },
   { value: 'en_decision_familiar', label: 'En decisión familiar' },
@@ -15,6 +16,7 @@ export type PipelineStage = typeof PIPELINE_STAGES[number]['value'];
 export const STAGE_COLORS: Record<string, string> = {
   lead_nuevo:           'bg-orange-100 text-orange-800',
   lead_calificado:      'bg-amber-100 text-amber-800',
+  no_contesta:          'bg-rose-100 text-rose-800',
   hogares_propuestos:   'bg-blue-100 text-blue-800',
   visitas_programadas:  'bg-sky-100 text-sky-800',
   en_decision_familiar: 'bg-violet-100 text-violet-800',
@@ -27,6 +29,7 @@ export const STAGE_COLORS: Record<string, string> = {
 export const STAGE_BORDER_COLORS: Record<string, string> = {
   lead_nuevo:           'border-orange-400',
   lead_calificado:      'border-amber-400',
+  no_contesta:          'border-rose-400',
   hogares_propuestos:   'border-blue-500',
   visitas_programadas:  'border-sky-500',
   en_decision_familiar: 'border-violet-400',
@@ -39,6 +42,7 @@ export const STAGE_BORDER_COLORS: Record<string, string> = {
 export const STAGE_ACCENT_COLORS: Record<string, string> = {
   lead_nuevo:           'bg-orange-400',
   lead_calificado:      'bg-amber-400',
+  no_contesta:          'bg-rose-400',
   hogares_propuestos:   'bg-blue-500',
   visitas_programadas:  'bg-sky-500',
   en_decision_familiar: 'bg-violet-500',
@@ -51,6 +55,7 @@ export const STAGE_ACCENT_COLORS: Record<string, string> = {
 export const STAGE_DOT_COLORS: Record<string, string> = {
   lead_nuevo:           'bg-orange-400',
   lead_calificado:      'bg-amber-500',
+  no_contesta:          'bg-rose-500',
   hogares_propuestos:   'bg-blue-500',
   visitas_programadas:  'bg-sky-500',
   en_decision_familiar: 'bg-violet-500',
@@ -63,6 +68,7 @@ export const STAGE_DOT_COLORS: Record<string, string> = {
 export const STAGE_STRONG_COLORS: Record<string, { bg: string; text: string; border: string; ring: string }> = {
   lead_nuevo:           { bg: 'bg-orange-500',  text: 'text-white', border: 'border-orange-600',  ring: 'ring-orange-300' },
   lead_calificado:      { bg: 'bg-amber-500',   text: 'text-white', border: 'border-amber-600',   ring: 'ring-amber-300' },
+  no_contesta:          { bg: 'bg-rose-500',    text: 'text-white', border: 'border-rose-600',    ring: 'ring-rose-300' },
   hogares_propuestos:   { bg: 'bg-blue-600',    text: 'text-white', border: 'border-blue-700',    ring: 'ring-blue-300' },
   visitas_programadas:  { bg: 'bg-sky-500',     text: 'text-white', border: 'border-sky-600',     ring: 'ring-sky-300' },
   en_decision_familiar: { bg: 'bg-violet-500',  text: 'text-white', border: 'border-violet-600',  ring: 'ring-violet-300' },
@@ -75,6 +81,7 @@ export const STAGE_STRONG_COLORS: Record<string, { bg: string; text: string; bor
 export const STAGE_GROUP: Record<string, 'followup' | 'active' | 'decision' | 'won' | 'lost'> = {
   lead_nuevo:           'followup',
   lead_calificado:      'followup',
+  no_contesta:          'followup',
   hogares_propuestos:   'active',
   visitas_programadas:  'active',
   en_decision_familiar: 'decision',

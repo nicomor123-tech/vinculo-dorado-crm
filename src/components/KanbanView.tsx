@@ -14,6 +14,7 @@ interface KanbanViewProps {
 const STAGE_STYLES: Record<string, { header: string; dot: string; light: string }> = {
   lead_nuevo:           { header: '#e4ae3a', dot: '#d4951f', light: '#fdf9ef' },
   lead_calificado:      { header: '#d4951f', dot: '#b87616', light: '#faf0d4' },
+  no_contesta:          { header: '#f43f5e', dot: '#e11d48', light: '#ffe4e6' },
   hogares_propuestos:   { header: '#2e9d93', dot: '#237e76', light: '#effaf8' },
   visitas_programadas:  { header: '#237e76', dot: '#1f6560', light: '#d7f3ee' },
   en_decision_familiar: { header: '#507f50', dot: '#3d653d', light: '#e6ede6' },
