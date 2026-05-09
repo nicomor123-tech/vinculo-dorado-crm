@@ -183,22 +183,25 @@ export interface Database {
           id: string
           lead_id: string | null
           user_id: string | null
-          fecha: string
-          notas: string | null
+          canal: string
+          nota: string | null
+          created_at: string
         }
         Insert: {
           id?: string
           lead_id?: string | null
           user_id?: string | null
-          fecha?: string
-          notas?: string | null
+          canal?: string
+          nota?: string | null
+          created_at?: string
         }
         Update: {
           id?: string
           lead_id?: string | null
           user_id?: string | null
-          fecha?: string
-          notas?: string | null
+          canal?: string
+          nota?: string | null
+          created_at?: string
         }
       }
       hogares: {

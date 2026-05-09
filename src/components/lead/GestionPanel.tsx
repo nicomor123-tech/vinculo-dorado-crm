@@ -46,8 +46,8 @@ const ACCION_OPTIONS = [
 
 interface IntentoRow {
   id: string;
-  fecha: string;
-  notas: string | null;
+  created_at: string;
+  nota: string | null;
 }
 
 function formatFechaCorta(iso: string): string {
@@ -92,9 +92,9 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
     const [intentosRes, leadRes] = await Promise.all([
       supabase
         .from('intentos_contacto')
-        .select('id, fecha, notas')
+        .select('id, created_at, nota')
         .eq('lead_id', leadId)
-        .order('fecha', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(5),
       supabase
         .from('leads')
@@ -123,8 +123,7 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
       const { error: insErr } = await supabase.from('intentos_contacto').insert({
         lead_id: leadId,
         user_id: user.id,
-        fecha: ahora,
-        notas: nota,
+        nota,
       });
       if (insErr) {
         console.error('Error insert intento:', insErr);
@@ -562,8 +561,8 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
                 <p className="text-[10px] uppercase tracking-wider text-rose-600 font-semibold px-1 pt-1">Últimos intentos</p>
                 {intentos.map((it) => (
                   <div key={it.id} className="flex items-start gap-2 px-2 py-1.5 border-b border-rose-50 last:border-b-0">
-                    <span className="text-[11px] font-medium text-rose-700 whitespace-nowrap">{formatFechaCorta(it.fecha)}</span>
-                    <span className="text-xs text-gray-700 flex-1">{it.notas || <span className="text-gray-400 italic">sin nota</span>}</span>
+                    <span className="text-[11px] font-medium text-rose-700 whitespace-nowrap">{formatFechaCorta(it.created_at)}</span>
+                    <span className="text-xs text-gray-700 flex-1">{it.nota || <span className="text-gray-400 italic">sin nota</span>}</span>
                   </div>
                 ))}
               </div>
