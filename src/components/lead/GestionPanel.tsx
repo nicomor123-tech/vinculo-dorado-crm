@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ClipboardList, Save, Phone, Mail, MessageSquare, Eye, MoreHorizontal, ArrowRight, Calendar, CheckCircle2, Trophy } from 'lucide-react';
+import { ClipboardList, Save, Phone, Mail, MessageSquare, Eye, MoreHorizontal, ArrowRight, Calendar, CheckCircle2, Trophy, PhoneOff, Plus } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { PIPELINE_STAGES, getStageLabel, getStageStrongColor } from '../../lib/pipeline';
@@ -31,6 +31,23 @@ const TIPO_OPTIONS = [
   { value: 'otro', label: 'Otro', icon: MoreHorizontal },
 ];
 
+const noRequiereProximoContacto = ['no_contesta', 'cierre_ganado', 'cierre_perdido', 'fallecido'];
+
+interface IntentoRow {
+  id: string;
+  fecha: string;
+  notas: string | null;
+}
+
+function formatFechaCorta(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return iso;
+  }
+}
+
 export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: GestionPanelProps) {
   const { user, profile } = useAuth();
   const [saving, setSaving] = useState(false);
@@ -48,6 +65,85 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
 
   const [razonEscalacion, setRazonEscalacion] = useState('');
   const [errorEscalacion, setErrorEscalacion] = useState('');
+
+  // No-contesta panel: contador + últimos intentos
+  const [intentos, setIntentos] = useState<IntentoRow[]>([]);
+  const [intentosCount, setIntentosCount] = useState<number>(0);
+  const [registrandoIntento, setRegistrandoIntento] = useState(false);
+
+  const showIntentosPanel = form.nuevaEtapa === 'no_contesta';
+  const ocultarProximoContacto = noRequiereProximoContacto.includes(form.nuevaEtapa);
+
+  const cargarIntentos = async () => {
+    const [intentosRes, leadRes] = await Promise.all([
+      supabase
+        .from('intentos_contacto')
+        .select('id, fecha, notas')
+        .eq('lead_id', leadId)
+        .order('fecha', { ascending: false })
+        .limit(5),
+      supabase
+        .from('leads')
+        .select('intentos_fallidos')
+        .eq('id', leadId)
+        .maybeSingle(),
+    ]);
+    if (intentosRes.data) setIntentos(intentosRes.data);
+    if (leadRes.data) setIntentosCount(leadRes.data.intentos_fallidos ?? 0);
+  };
+
+  useEffect(() => {
+    if (showIntentosPanel) {
+      cargarIntentos();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showIntentosPanel, leadId]);
+
+  const handleRegistrarIntento = async () => {
+    if (!user) return;
+    setRegistrandoIntento(true);
+    try {
+      const ahora = new Date().toISOString();
+      const nota = form.nota.trim() || null;
+
+      const { error: insErr } = await supabase.from('intentos_contacto').insert({
+        lead_id: leadId,
+        user_id: user.id,
+        fecha: ahora,
+        notas: nota,
+      });
+      if (insErr) {
+        console.error('Error insert intento:', insErr);
+        alert(`Error: ${insErr.message}`);
+        return;
+      }
+
+      const nuevoCount = intentosCount + 1;
+      const { error: updErr } = await supabase
+        .from('leads')
+        .update({
+          intentos_fallidos: nuevoCount,
+          ultimo_intento_fallido: ahora,
+          updated_at: ahora,
+        })
+        .eq('id', leadId);
+      if (updErr) {
+        console.error('Error update lead:', updErr);
+      }
+
+      await supabase.from('activity_log').insert({
+        lead_id: leadId,
+        user_id: user.id,
+        tipo: 'intento_fallido',
+        descripcion: nota ? `Intento fallido: ${nota}` : 'Intento fallido registrado',
+        metadata: { intento_numero: nuevoCount },
+      });
+
+      await cargarIntentos();
+    } finally {
+      setRegistrandoIntento(false);
+    }
+  };
 
   const handleUrgenciaChange = async (nueva: string) => {
     const anterior = urgencia;
@@ -422,6 +518,45 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
           </div>
         )}
 
+        {showIntentosPanel && (
+          <div className="bg-rose-50 border border-rose-200 rounded-lg p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <PhoneOff className="w-4 h-4 text-rose-600" />
+              <span className="text-xs font-semibold text-rose-800 uppercase tracking-wide">Intentos fallidos de contacto</span>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="bg-white border border-rose-300 rounded-lg px-4 py-3 text-center min-w-[88px]">
+                <p className="text-3xl font-bold text-rose-700 leading-none">{intentosCount}</p>
+                <p className="text-[10px] uppercase tracking-wider text-rose-600 mt-1">intentos</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleRegistrarIntento}
+                disabled={registrandoIntento}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                {registrandoIntento ? 'Registrando...' : 'Registrar intento fallido'}
+              </button>
+            </div>
+            <p className="text-[11px] text-rose-700">Usa la nota de gestión arriba para anotar contexto del intento (opcional).</p>
+
+            {intentos.length > 0 && (
+              <div className="bg-white border border-rose-200 rounded-lg p-2 space-y-1">
+                <p className="text-[10px] uppercase tracking-wider text-rose-600 font-semibold px-1 pt-1">Últimos intentos</p>
+                {intentos.map((it) => (
+                  <div key={it.id} className="flex items-start gap-2 px-2 py-1.5 border-b border-rose-50 last:border-b-0">
+                    <span className="text-[11px] font-medium text-rose-700 whitespace-nowrap">{formatFechaCorta(it.fecha)}</span>
+                    <span className="text-xs text-gray-700 flex-1">{it.notas || <span className="text-gray-400 italic">sin nota</span>}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!ocultarProximoContacto && (
         <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 space-y-3">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-blue-500" />
@@ -454,6 +589,7 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
             </div>
           </div>
         </div>
+        )}
 
         <div className="flex items-center gap-3 pt-1 flex-wrap">
           <button
