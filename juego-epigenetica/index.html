@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EPIGENÉTICA · Juego de Tablero</title>
+<style>
+  :root{
+    --bg1:#0b1026; --bg2:#1a0f3a; --gold:#e8c46a; --teal:#37e0c8;
+    --pink:#ff6fb5; --purple:#8b6cf0; --ok:#2fbf71; --bad:#ef5a6f;
+    --card:#161a3a; --line:rgba(255,255,255,.12);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Plus Jakarta Sans',-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    color:#f4f5ff; min-height:100vh;
+    background:
+      radial-gradient(1100px 600px at 12% 0%, #2a1660 0%, transparent 55%),
+      radial-gradient(900px 600px at 95% 100%, #06303a 0%, transparent 55%),
+      linear-gradient(160deg,var(--bg1),var(--bg2));
+    background-attachment:fixed;
+  }
+  .wrap{max-width:1100px;margin:0 auto;padding:22px 16px 60px}
+  header{text-align:center;margin-bottom:14px}
+  header h1{
+    font-size:clamp(28px,5vw,46px);font-weight:800;letter-spacing:1px;
+    background:linear-gradient(90deg,var(--gold),var(--teal));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  header p{color:#c9cdf2;font-size:14px;margin-top:4px;opacity:.9}
+
+  .panel{
+    background:rgba(255,255,255,.04);border:1px solid var(--line);
+    border-radius:18px;padding:18px;margin-bottom:16px;backdrop-filter:blur(4px);
+  }
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:center}
+  button{
+    font-family:inherit;cursor:pointer;border:none;border-radius:12px;
+    padding:11px 18px;font-weight:700;font-size:15px;color:#0b1026;
+    background:linear-gradient(90deg,var(--gold),#f0d488);transition:.15s transform,.15s filter;
+  }
+  button:hover{transform:translateY(-1px);filter:brightness(1.05)}
+  button:active{transform:translateY(0)}
+  button.ghost{background:transparent;color:#dfe2ff;border:1px solid var(--line)}
+  button.ghost:hover{background:rgba(255,255,255,.06)}
+  button:disabled{opacity:.45;cursor:not-allowed;transform:none}
+
+  /* setup */
+  .players-setup{display:flex;flex-direction:column;gap:10px;align-items:center}
+  .pcount{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+  .pcount button{padding:9px 16px}
+  .pcount button.sel{outline:3px solid var(--teal);outline-offset:2px}
+  .nameinputs{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+  .nameinputs label{display:flex;flex-direction:column;font-size:12px;color:#aeb3e6;gap:4px}
+  .nameinputs input{
+    background:#0e1230;border:1px solid var(--line);border-radius:10px;
+    padding:8px 10px;color:#fff;font-family:inherit;font-size:14px;width:150px;
+  }
+
+  /* HUD */
+  .hud{display:flex;gap:14px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+  .turnbox{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px}
+  .scoreline{display:flex;gap:10px;flex-wrap:wrap}
+  .chip{
+    display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.05);
+    border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:700;
+  }
+  .dot{width:14px;height:14px;border-radius:50%;display:inline-block;flex:none}
+
+  .dicewrap{display:flex;align-items:center;gap:14px}
+  .die{
+    width:62px;height:62px;border-radius:14px;background:#fff;color:#12163a;
+    display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:900;
+    box-shadow:0 8px 26px rgba(0,0,0,.45);user-select:none;
+  }
+  .die.rolling{animation:shake .5s linear}
+  @keyframes shake{
+    0%,100%{transform:rotate(0)}25%{transform:rotate(-14deg) scale(1.06)}
+    50%{transform:rotate(10deg)}75%{transform:rotate(-6deg)}
+  }
+
+  /* board */
+  .board{
+    display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:6px;
+  }
+  .cell{
+    position:relative;border-radius:14px;min-height:92px;padding:8px;
+    border:1px solid var(--line);background:linear-gradient(160deg,#1c2150,#141833);
+    display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;
+  }
+  .cell .num{font-size:11px;opacity:.55;font-weight:700}
+  .cell .lab{font-size:12.5px;font-weight:800;line-height:1.15;letter-spacing:.3px}
+  .cell.q{border-color:rgba(55,224,200,.35)}
+  .cell.q .lab{color:#bff6ec}
+  .cell.special{border-color:rgba(255,111,181,.4);background:linear-gradient(160deg,#3a1a4a,#231333)}
+  .cell.special .icon{font-size:28px}
+  .cell.start{background:linear-gradient(160deg,#15402f,#10331f);border-color:rgba(47,191,113,.5)}
+  .cell.end{background:linear-gradient(160deg,#4a3a12,#2f2710);border-color:var(--gold)}
+  .cell.active{outline:3px solid var(--gold);outline-offset:1px;box-shadow:0 0 0 6px rgba(232,196,106,.12)}
+  .cell.done{opacity:.62}
+  .cell.done::after{content:"✔";position:absolute;top:6px;right:8px;color:var(--ok);font-weight:900;font-size:14px}
+  .tokens{display:flex;gap:4px;flex-wrap:wrap}
+  .token{
+    width:18px;height:18px;border-radius:50%;border:2px solid rgba(0,0,0,.35);
+    box-shadow:0 2px 6px rgba(0,0,0,.4);transition:.2s;
+  }
+
+  /* modal */
+  .overlay{
+    position:fixed;inset:0;background:rgba(4,6,20,.78);backdrop-filter:blur(3px);
+    display:none;align-items:center;justify-content:center;padding:18px;z-index:50;
+  }
+  .overlay.show{display:flex}
+  .modal{
+    width:min(560px,100%);background:linear-gradient(165deg,#1b2050,#12152e);
+    border:1px solid var(--line);border-radius:20px;padding:24px;animation:pop .2s ease;
+  }
+  @keyframes pop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+  .modal .tag{
+    display:inline-block;font-size:12px;font-weight:800;letter-spacing:1px;
+    padding:5px 12px;border-radius:999px;background:rgba(55,224,200,.16);
+    color:var(--teal);margin-bottom:10px;
+  }
+  .modal h2{font-size:20px;line-height:1.3;margin-bottom:16px}
+  .opts{display:flex;flex-direction:column;gap:10px}
+  .opt{
+    text-align:left;color:#eef0ff;background:#0f1336;border:1px solid var(--line);
+    border-radius:12px;padding:13px 14px;font-size:14.5px;font-weight:600;
+  }
+  .opt:hover:not(:disabled){border-color:var(--teal);transform:none;filter:none;background:#141a45}
+  .opt.correct{background:rgba(47,191,113,.22);border-color:var(--ok);color:#d5ffe7}
+  .opt.wrong{background:rgba(239,90,111,.2);border-color:var(--bad);color:#ffd9df}
+  .feedback{margin-top:16px;font-size:14px;font-weight:700;text-align:center;min-height:22px}
+  .feedback.ok{color:var(--ok)}
+  .feedback.bad{color:var(--bad)}
+  .modal .center{display:flex;justify-content:center;margin-top:18px}
+  .event-emoji{font-size:46px;text-align:center;margin:6px 0 12px}
+  .event-text{font-size:16px;text-align:center;line-height:1.5;color:#eef0ff}
+
+  .finalwrap{text-align:center;padding:14px}
+  .finalwrap .dna{font-size:54px}
+  .finalwrap h2{
+    font-size:30px;margin:10px 0;
+    background:linear-gradient(90deg,var(--gold),var(--teal));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .finalwrap p{color:#dfe2ff;line-height:1.6;font-size:16px}
+  .podium{display:flex;flex-direction:column;gap:8px;max-width:360px;margin:18px auto 4px}
+  .podium .chip{justify-content:space-between;font-size:15px;padding:10px 16px}
+
+  .credits{
+    text-align:center;color:#aeb3e6;font-size:13px;line-height:1.7;
+    margin-top:26px;padding-top:18px;border-top:1px solid var(--line);
+  }
+  .credits strong{color:#e8c46a}
+  .hide{display:none!important}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;font-size:12px;color:#c9cdf2;margin-top:12px}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .sw{width:13px;height:13px;border-radius:4px;display:inline-block}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🧬 EPIGENÉTICA</h1>
+    <p>Un puente entre genes y comportamiento</p>
+  </header>
+
+  <!-- SETUP -->
+  <section id="setup" class="panel">
+    <div class="players-setup">
+      <p style="font-weight:700;font-size:16px">¿Cuántos jugadores?</p>
+      <div class="pcount" id="pcount"></div>
+      <div class="nameinputs" id="nameinputs"></div>
+      <div style="margin-top:8px"><button id="startBtn">▶ Empezar a jugar</button></div>
+      <p style="font-size:12.5px;color:#9aa0d6;max-width:560px;text-align:center;margin-top:6px">
+        Tira el dado en tu turno. Si caes en una casilla de tema, responde la pregunta:
+        aciertas y sumas un punto; fallas y retrocedes 2 casillas. Las casillas con ícono
+        (⭐💎💡🚚) son eventos. Gana quien llegue primero a la META.
+      </p>
+    </div>
+  </section>
+
+  <!-- GAME -->
+  <section id="game" class="hide">
+    <div class="panel hud">
+      <div class="turnbox">
+        <span class="dot" id="turnDot"></span>
+        <span>Turno: <span id="turnName">—</span></span>
+      </div>
+      <div class="scoreline" id="scoreline"></div>
+      <div class="dicewrap">
+        <div class="die" id="die">🎲</div>
+        <button id="rollBtn">Tirar dado</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="board" id="board"></div>
+      <div class="legend">
+        <span><i class="sw" style="background:#10331f;border:1px solid rgba(47,191,113,.6)"></i> Salida / Meta</span>
+        <span><i class="sw" style="background:#142a4a;border:1px solid rgba(55,224,200,.6)"></i> Pregunta</span>
+        <span><i class="sw" style="background:#3a1a4a;border:1px solid rgba(255,111,181,.6)"></i> Evento especial</span>
+      </div>
+    </div>
+
+    <div class="row">
+      <button class="ghost" id="resetBtn">↺ Reiniciar juego</button>
+    </div>
+  </section>
+
+  <div class="credits">
+    <strong>Juego creado por:</strong> Javier Zambrano · Nicolás Mora Garnica · Nico<br>
+    Biología del Comportamiento — Psi. Esp. Dalia Lorena Dubois Camacho<br>
+    Fundación Universitaria del Área Andina<br>
+    <span style="opacity:.65">Contenido basado en las diapositivas “Epigenética y Psicología: Un Puente Entre Genes y Comportamiento”.</span>
+  </div>
+</div>
+
+<!-- MODALS -->
+<div class="overlay" id="qOverlay">
+  <div class="modal">
+    <span class="tag" id="qTag">PREGUNTA</span>
+    <h2 id="qText"></h2>
+    <div class="opts" id="qOpts"></div>
+    <div class="feedback" id="qFeedback"></div>
+    <div class="center"><button id="qContinue" class="hide">Continuar →</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="eOverlay">
+  <div class="modal">
+    <div class="event-emoji" id="eEmoji"></div>
+    <div class="event-text" id="eText"></div>
+    <div class="center"><button id="eContinue">Continuar →</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="fOverlay">
+  <div class="modal finalwrap">
+    <div class="dna">🧬</div>
+    <h2>¡LLEGASTE A LA META!</h2>
+    <p>Demostraste que entendiste cómo el ambiente le escribe a tus genes.<br><strong>Tu ADN no es tu destino.</strong></p>
+    <div class="podium" id="podium"></div>
+    <div class="center"><button id="fAgain">Jugar otra vez</button></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var COLORS = ["#37e0c8","#ff6fb5","#e8c46a","#8b6cf0"];
+
+  // ---- Tablero: SALIDA -> 18 casillas -> META ----
+  var CELLS = [
+    {type:"start", label:"SALIDA"},
+    {type:"q", label:"EPIGENÉTICA", q:"¿Qué es la epigenética?", opts:[
+      {t:"El estudio de cambios en la secuencia del ADN", c:false},
+      {t:"Modificaciones heredables en la expresión génica sin cambios en la secuencia del ADN", c:true},
+      {t:"El estudio de las mutaciones genéticas hereditarias", c:false}]},
+    {type:"q", label:"INTERRUPTOR", q:"¿Cómo actúa la epigenética sobre los genes?", opts:[
+      {t:"Cambia las bases nitrogenadas del ADN", c:false},
+      {t:"Como un “interruptor molecular” que activa o silencia genes", c:true},
+      {t:"Elimina genes que no se usan", c:false}]},
+    {type:"q", label:"AMBIENTE", q:"¿Qué factores pueden dejar marcas epigenéticas?", opts:[
+      {t:"Solo factores hereditarios biológicos", c:false},
+      {t:"Solo el ADN heredado de los padres", c:false},
+      {t:"Estrés, dieta, traumas psicológicos y experiencias tempranas", c:true}]},
+    {type:"special", icon:"⭐", label:"ESTRELLA", move:2,
+      text:"¡Avanza 2 casillas! La epigenética demuestra que tu ambiente sí cuenta."},
+    {type:"q", label:"METILACIÓN", q:"¿Qué es la metilación del ADN?", opts:[
+      {t:"Una mutación en las bases del ADN", c:false},
+      {t:"Adición de grupos metilo (CH₃) a las bases de citosina, generalmente silenciando genes", c:true},
+      {t:"Rotura del ADN durante la división celular", c:false}]},
+    {type:"q", label:"BDNF", q:"La metilación alterada de cuál gen se asocia con la depresión?", opts:[
+      {t:"FOXP2", c:false},
+      {t:"BDNF (Factor Neurotrófico Derivado del Cerebro)", c:true},
+      {t:"HOX", c:false}]},
+    {type:"special", icon:"💡", label:"BOMBILLO", move:0,
+      text:"Pista gratis: la metilación generalmente SILENCIA los genes."},
+    {type:"q", label:"HISTONAS", q:"¿Qué son las histonas?", opts:[
+      {t:"Enzimas que cortan el ADN", c:false},
+      {t:"Proteínas alrededor de las cuales se enrolla el ADN para formar cromatina", c:true},
+      {t:"Un tipo de ARN mensajero", c:false}]},
+    {type:"q", label:"ESTRÉS CRÓNICO", q:"¿Qué efecto tiene el estrés crónico sobre las histonas en el hipocampo?", opts:[
+      {t:"Aumenta la producción de histonas", c:false},
+      {t:"Provoca compactación del ADN, alterando la acetilación de histonas", c:true},
+      {t:"No afecta a las histonas", c:false}]},
+    {type:"special", icon:"🚚", label:"CAMIÓN", move:-2,
+      text:"Estrés crónico detectado. Retrocede 2 casillas."},
+    {type:"q", label:"miRNAs", q:"¿Qué función cumplen los microARNs (miRNAs)?", opts:[
+      {t:"Construyen nuevas proteínas", c:false},
+      {t:"Regulan la expresión génica impidiendo la traducción de ARNm específicos", c:true},
+      {t:"Cortan y reparan el ADN dañado", c:false}]},
+    {type:"q", label:"MEANEY", q:"En los estudios con ratas, ¿qué efecto tenía el cuidado materno intenso (lamido y acicalamiento)?", opts:[
+      {t:"Las crías eran más agresivas en la adultez", c:false},
+      {t:"Las crías mostraban menos reactividad al estrés en la adultez", c:true},
+      {t:"No tenía efectos a largo plazo", c:false}]},
+    {type:"special", icon:"💎", label:"DIAMANTE", move:0, again:true,
+      text:"¡Premio! Tira el dado otra vez. La acetilación de histonas activó tu gen ganador."},
+    {type:"q", label:"FKBP5", q:"¿Qué gen mostró patrones alterados de metilación en niños con historias de maltrato?", opts:[
+      {t:"BDNF", c:false},
+      {t:"NR3C1", c:false},
+      {t:"FKBP5", c:true}]},
+    {type:"q", label:"NR3C1", q:"En la depresión mayor, ¿qué ocurre con el gen NR3C1?", opts:[
+      {t:"Hipermetilación que aumenta los receptores de cortisol", c:false},
+      {t:"Hipometilación asociada con mayor sensibilidad al estrés", c:true},
+      {t:"Mutación que elimina el gen completamente", c:false}]},
+    {type:"q", label:"TEPT", q:"¿En qué trastorno se han encontrado cambios epigenéticos en FKBP5 y SLC6A4?", opts:[
+      {t:"Esquizofrenia", c:false},
+      {t:"Adicciones", c:false},
+      {t:"Trastorno de Estrés Postraumático", c:true}]},
+    {type:"q", label:"AGOUTI", q:"¿Qué demuestra el caso de los ratones Agouti?", opts:[
+      {t:"Que la genética determina completamente el fenotipo", c:false},
+      {t:"Que ratones genéticamente idénticos pueden tener fenotipos distintos según la metilación del gen Agouti", c:true},
+      {t:"Que la dieta no afecta la expresión genética", c:false}]},
+    {type:"q", label:"GEMELOS", q:"¿Por qué gemelos monocigóticos pueden desarrollar enfermedades mentales diferentes con el mismo ADN?", opts:[
+      {t:"Porque uno de los dos tuvo una mutación espontánea", c:false},
+      {t:"Porque presentan patrones divergentes de metilación del ADN", c:true},
+      {t:"Porque en realidad no son genéticamente idénticos", c:false}]},
+    {type:"end", label:"META"}
+  ];
+  var LAST = CELLS.length - 1;
+
+  // ---- Estado ----
+  var nPlayers = 2, players = [], turn = 0, busy = false, pendingCellIdx = null;
+
+  // ---- Setup UI ----
+  var pcount = document.getElementById("pcount");
+  var nameinputs = document.getElementById("nameinputs");
+  for (var i=1;i<=4;i++){
+    (function(n){
+      var b=document.createElement("button");
+      b.textContent=n; b.className=(n===nPlayers?"sel":"");
+      b.onclick=function(){ nPlayers=n; renderPcount(); renderNameInputs(); };
+      pcount.appendChild(b);
+    })(i);
+  }
+  function renderPcount(){
+    var bs=pcount.querySelectorAll("button");
+    for(var i=0;i<bs.length;i++) bs[i].className=((i+1)===nPlayers?"sel":"");
+  }
+  function renderNameInputs(){
+    nameinputs.innerHTML="";
+    for(var i=0;i<nPlayers;i++){
+      var l=document.createElement("label");
+      l.innerHTML="Jugador "+(i+1);
+      var inp=document.createElement("input");
+      inp.id="pname"+i; inp.value="Jugador "+(i+1); inp.maxLength=14;
+      l.appendChild(inp); nameinputs.appendChild(l);
+    }
+  }
+  renderNameInputs();
+
+  document.getElementById("startBtn").onclick=function(){
+    players=[];
+    for(var i=0;i<nPlayers;i++){
+      var v=(document.getElementById("pname"+i).value||"").trim();
+      players.push({name:v||("Jugador "+(i+1)), pos:0, score:0, color:COLORS[i]});
+    }
+    turn=0; busy=false;
+    document.getElementById("setup").classList.add("hide");
+    document.getElementById("game").classList.remove("hide");
+    buildBoard(); render();
+  };
+
+  // ---- Board ----
+  var boardEl=document.getElementById("board");
+  function buildBoard(){
+    boardEl.innerHTML="";
+    // serpenteo: 6 columnas, filas alternas invierten el orden visual
+    var perRow=6, ordered=[];
+    for(var i=0;i<CELLS.length;i++) ordered.push(i);
+    var rows=[];
+    for(var r=0;r*perRow<ordered.length;r++){
+      var slice=ordered.slice(r*perRow,(r+1)*perRow);
+      if(r%2===1) slice.reverse();
+      rows=rows.concat(slice);
+    }
+    boardEl._order=rows;
+    for(var k=0;k<rows.length;k++){
+      var idx=rows[k], c=CELLS[idx];
+      var d=document.createElement("div");
+      d.className="cell "+(c.type==="q"?"q":c.type==="special"?"special":c.type);
+      d.dataset.idx=idx;
+      var top=document.createElement("div");
+      top.className="num";
+      top.textContent = c.type==="start"?"INICIO":c.type==="end"?"FINAL":("Casilla "+idx);
+      var lab=document.createElement("div");
+      lab.className="lab";
+      lab.innerHTML=(c.icon?'<div class="icon">'+c.icon+'</div>':'')+c.label;
+      var tk=document.createElement("div");
+      tk.className="tokens"; tk.dataset.tokens=idx;
+      d.appendChild(top); d.appendChild(lab); d.appendChild(tk);
+      boardEl.appendChild(d);
+    }
+  }
+
+  function render(){
+    var cells=boardEl.querySelectorAll(".cell");
+    for(var i=0;i<cells.length;i++){
+      var idx=parseInt(cells[i].dataset.idx,10);
+      cells[i].classList.toggle("active", players.some(function(p){return p.pos===idx;}));
+      cells[i].querySelector(".tokens").innerHTML="";
+    }
+    players.forEach(function(p){
+      var box=boardEl.querySelector('.tokens[data-tokens="'+p.pos+'"]');
+      if(box){
+        var t=document.createElement("div");
+        t.className="token"; t.style.background=p.color; t.title=p.name;
+        box.appendChild(t);
+      }
+    });
+    var cur=players[turn];
+    document.getElementById("turnName").textContent=cur.name;
+    document.getElementById("turnDot").style.background=cur.color;
+    var sl=document.getElementById("scoreline"); sl.innerHTML="";
+    players.forEach(function(p,i){
+      var c=document.createElement("div"); c.className="chip";
+      c.innerHTML='<span class="dot" style="background:'+p.color+'"></span>'+
+        p.name+' · <strong>'+p.score+' pts</strong>';
+      if(i===turn) c.style.borderColor=p.color;
+      sl.appendChild(c);
+    });
+  }
+
+  // ---- Dado / turno ----
+  var FACES=["⚀","⚁","⚂","⚃","⚄","⚅"];
+  var rollBtn=document.getElementById("rollBtn");
+  var dieEl=document.getElementById("die");
+
+  rollBtn.onclick=function(){
+    if(busy) return;
+    busy=true; rollBtn.disabled=true;
+    dieEl.classList.add("rolling");
+    var ticks=0, iv=setInterval(function(){
+      dieEl.textContent=FACES[Math.floor(Math.random()*6)]; ticks++;
+      if(ticks>=8){
+        clearInterval(iv);
+        var roll=Math.floor(Math.random()*6)+1;
+        dieEl.textContent=FACES[roll-1];
+        dieEl.classList.remove("rolling");
+        moveCurrent(roll, true);
+      }
+    },60);
+  };
+
+  function moveCurrent(steps, normalTurn){
+    var p=players[turn];
+    var target=Math.max(0, Math.min(LAST, p.pos+steps));
+    stepTo(p, target, function(){
+      arrive(p, normalTurn);
+    });
+  }
+
+  function stepTo(p, target, done){
+    if(p.pos===target){ done(); return; }
+    var dir=target>p.pos?1:-1;
+    p.pos+=dir; render();
+    setTimeout(function(){ stepTo(p,target,done); }, 170);
+  }
+
+  function arrive(p, normalTurn){
+    if(p.pos>=LAST){ render(); return finish(); }
+    var cell=CELLS[p.pos];
+    if(cell.type==="q"){
+      pendingCellIdx=p.pos; openQuestion(cell);
+    } else if(cell.type==="special"){
+      openEvent(cell);
+    } else {
+      endTurn();
+    }
+  }
+
+  function endTurn(){
+    busy=false; rollBtn.disabled=false;
+    turn=(turn+1)%players.length;
+    render();
+  }
+
+  // ---- Preguntas ----
+  var qOverlay=document.getElementById("qOverlay");
+  function shuffle(a){ a=a.slice(); for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;} return a; }
+
+  function openQuestion(cell){
+    document.getElementById("qTag").textContent=cell.label;
+    document.getElementById("qText").textContent=cell.q;
+    var ob=document.getElementById("qOpts"); ob.innerHTML="";
+    var fb=document.getElementById("qFeedback"); fb.textContent=""; fb.className="feedback";
+    var cont=document.getElementById("qContinue"); cont.classList.add("hide");
+    var opts=shuffle(cell.opts);
+    opts.forEach(function(o){
+      var b=document.createElement("button");
+      b.className="opt"; b.textContent=o.t;
+      b.onclick=function(){ answer(b, o, ob, fb, cont); };
+      ob.appendChild(b);
+    });
+    qOverlay.classList.add("show");
+  }
+
+  function answer(btn, opt, ob, fb, cont){
+    var all=ob.querySelectorAll(".opt");
+    for(var i=0;i<all.length;i++) all[i].disabled=true;
+    var p=players[turn];
+    if(opt.c){
+      btn.classList.add("correct");
+      p.score+=1;
+      fb.textContent="✅ ¡Correcto! +1 punto";
+      fb.className="feedback ok";
+      cont._penalty=0;
+    } else {
+      btn.classList.add("wrong");
+      for(var j=0;j<all.length;j++){
+        if(all[j].textContent && isCorrectText(all[j].textContent)) all[j].classList.add("correct");
+      }
+      fb.textContent="❌ Incorrecto. Retrocedes 2 casillas.";
+      fb.className="feedback bad";
+      cont._penalty=-2;
+    }
+    render();
+    cont.classList.remove("hide");
+  }
+  function isCorrectText(txt){
+    var cell=CELLS[pendingCellIdx];
+    for(var i=0;i<cell.opts.length;i++) if(cell.opts[i].t===txt) return cell.opts[i].c;
+    return false;
+  }
+
+  document.getElementById("qContinue").onclick=function(){
+    var pen=this._penalty||0;
+    qOverlay.classList.remove("show");
+    var p=players[turn];
+    if(pen<0){
+      var tgt=Math.max(0,p.pos+pen);
+      stepTo(p,tgt,function(){
+        if(p.pos>=LAST){ render(); return finish(); }
+        var c=CELLS[p.pos];
+        if(c.type==="special"){ openEvent(c); }
+        else { endTurn(); }
+      });
+    } else {
+      endTurn();
+    }
+  };
+
+  // ---- Eventos especiales ----
+  var eOverlay=document.getElementById("eOverlay");
+  function openEvent(cell){
+    document.getElementById("eEmoji").textContent=cell.icon;
+    document.getElementById("eText").textContent=cell.text;
+    eOverlay._cell=cell;
+    eOverlay.classList.add("show");
+  }
+  document.getElementById("eContinue").onclick=function(){
+    var cell=eOverlay._cell;
+    eOverlay.classList.remove("show");
+    var p=players[turn];
+    if(cell.again){
+      // tira otra vez: mismo jugador
+      busy=false; rollBtn.disabled=false; render();
+      return;
+    }
+    if(cell.move && cell.move!==0){
+      var tgt=Math.max(0,Math.min(LAST,p.pos+cell.move));
+      stepTo(p,tgt,function(){
+        if(p.pos>=LAST){ render(); return finish(); }
+        // tras evento de movimiento, no se re-dispara la casilla destino
+        endTurn();
+      });
+    } else {
+      endTurn();
+    }
+  };
+
+  // ---- Final ----
+  var fOverlay=document.getElementById("fOverlay");
+  function finish(){
+    var podium=document.getElementById("podium"); podium.innerHTML="";
+    var ranked=players.slice().sort(function(a,b){
+      if(b.pos!==a.pos) return b.pos-a.pos;
+      return b.score-a.score;
+    });
+    var medals=["🥇","🥈","🥉","🏅"];
+    ranked.forEach(function(p,i){
+      var c=document.createElement("div"); c.className="chip";
+      c.innerHTML='<span><span class="dot" style="background:'+p.color+'"></span> '+
+        medals[i]+' '+p.name+'</span><strong>'+p.score+' pts</strong>';
+      podium.appendChild(c);
+    });
+    fOverlay.classList.add("show");
+  }
+  document.getElementById("fAgain").onclick=function(){ location.reload(); };
+  document.getElementById("resetBtn").onclick=function(){ location.reload(); };
+
+})();
+</script>
+</body>
+</html>
