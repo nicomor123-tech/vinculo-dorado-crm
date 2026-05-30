@@ -31,6 +31,15 @@ const ZONAS_BOGOTA = [
   'La Candelaria', 'Rafael Uribe Uribe', 'Ciudad Bolívar', 'Sumapaz',
 ];
 
+const WIZARD_STEPS = [
+  'Contacto',
+  'Búsqueda y adulto mayor',
+  'Salud y asistencia',
+  'Preferencias y presupuesto',
+  'Cierre',
+];
+const TOTAL_STEPS = WIZARD_STEPS.length;
+
 const initialForm = {
   ciudad_opcion: '',
   ciudad_otra: '',
@@ -199,6 +208,7 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
   const [error, setError] = useState('');
   const [formData, setFormData] = useState<FormData>(initialForm);
   const [savedSummary, setSavedSummary] = useState<string | null>(null);
+  const [step, setStep] = useState(1);
   const scrollBodyRef = useRef<HTMLDivElement>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
 
@@ -209,14 +219,44 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  // El cuerpo del formulario debe arrancar arriba del todo: reseteamos el
-  // scroll interno y enfocamos el primer campo SIN que el navegador haga
-  // scroll automático (preventScroll), que era lo que dejaba el modal
-  // abierto a la altura de "Situación médica" en lugar de los datos del contacto.
+  // Cada paso debe arrancar arriba del todo: al cambiar de paso reseteamos el
+  // scroll interno y, solo en el paso 1, enfocamos el primer campo SIN que el
+  // navegador haga scroll automático (preventScroll).
   useLayoutEffect(() => {
     if (scrollBodyRef.current) scrollBodyRef.current.scrollTop = 0;
-    firstFieldRef.current?.focus({ preventScroll: true });
-  }, []);
+    if (step === 1) firstFieldRef.current?.focus({ preventScroll: true });
+  }, [step]);
+
+  const goNext = () => {
+    if (step === 1) {
+      if (!formData.nombre_contacto.trim()) {
+        setError('El nombre del contacto es requerido.');
+        return;
+      }
+      if (!formData.telefono_principal.trim()) {
+        setError('El teléfono principal es requerido.');
+        return;
+      }
+    }
+    setError('');
+    setStep((s) => Math.min(TOTAL_STEPS, s + 1));
+  };
+
+  const goBack = () => {
+    setError('');
+    setStep((s) => Math.max(1, s - 1));
+  };
+
+  // Wrapper de presentación: en los pasos 1-4 "Siguiente"/Enter avanza el
+  // asistente; solo en el último paso se dispara handleSubmit (insert + Telegram).
+  const onFormSubmit = (e: React.FormEvent) => {
+    if (step < TOTAL_STEPS) {
+      e.preventDefault();
+      goNext();
+      return;
+    }
+    handleSubmit(e);
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -431,19 +471,33 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-stretch sm:items-center justify-center p-0 sm:p-4">
-      <form onSubmit={handleSubmit} className="bg-white w-full h-full sm:h-auto sm:max-w-2xl sm:max-h-[90vh] sm:rounded-xl shadow-2xl flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200 bg-white flex-shrink-0">
-          <div>
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">Nuevo Lead</h2>
-            <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">Sigue el guión de ventas para capturar la información</p>
+      <form onSubmit={onFormSubmit} className="bg-white w-full h-full sm:h-auto sm:max-w-2xl sm:max-h-[90vh] sm:rounded-xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-200 bg-white flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900">Nuevo Lead</h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Paso {step} de {TOTAL_STEPS} · {WIZARD_STEPS[step - 1]}
+              </p>
+            </div>
+            <button type="button" onClick={onClose} className="p-2.5 hover:bg-gray-100 rounded-xl transition active:scale-95">
+              <X className="w-5 h-5 text-gray-500" />
+            </button>
           </div>
-          <button type="button" onClick={onClose} className="p-2.5 hover:bg-gray-100 rounded-xl transition active:scale-95">
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
+          <div className="flex items-center gap-1.5 mt-3">
+            {WIZARD_STEPS.map((_, i) => (
+              <div
+                key={i}
+                className={`h-1.5 flex-1 rounded-full transition-colors ${i < step ? 'bg-blue-600' : 'bg-gray-200'}`}
+              />
+            ))}
+          </div>
         </div>
 
         <div ref={scrollBodyRef} className="px-4 sm:px-6 py-5 sm:py-6 space-y-7 sm:space-y-8 flex-1 min-h-0 overflow-y-auto">
 
+          {step === 1 && (
+          <>
           {/* SECCIÓN 1 – DATOS DEL CONTACTO */}
           <section>
             <SectionHeader
@@ -528,7 +582,11 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
               </div>
             </div>
           </section>
+          </>
+          )}
 
+          {step === 2 && (
+          <>
           {/* SECCIÓN 2 – CONTEXTO DE LA BÚSQUEDA */}
           <section>
             <SectionHeader
@@ -635,7 +693,11 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
               </div>
             </div>
           </section>
+          </>
+          )}
 
+          {step === 3 && (
+          <>
           {/* SECCIÓN 4 – SITUACIÓN MÉDICA GENERAL */}
           <section>
             <SectionHeader
@@ -703,7 +765,11 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
               </div>
             </div>
           </section>
+          </>
+          )}
 
+          {step === 4 && (
+          <>
           {/* SECCIÓN 6 – PREFERENCIAS DEL HOGAR */}
           <section>
             <SectionHeader
@@ -803,6 +869,28 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
             </div>
           </section>
 
+          <HogaresRecomendados
+            criteria={{
+              ciudad: formData.ciudad_opcion === 'Otra' ? formData.ciudad_otra : formData.ciudad_opcion,
+              zona_localidad: formData.zona_localidad,
+              presupuesto_rango: formData.presupuesto_rango,
+              requiere_oxigeno: formData.requiere_oxigeno,
+              requiere_primer_piso: formData.requiere_primer_piso,
+              tipo_habitacion: formData.tipo_habitacion,
+              ayuda_para_caminar: formData.ayuda_para_caminar,
+              ayuda_para_bano: formData.ayuda_para_bano,
+              ayuda_para_comer: formData.ayuda_para_comer,
+              fecha_ingreso_estimada: formData.fecha_ingreso_estimada,
+            }}
+            onViewDetail={(id) => {
+              if (onViewHogar) onViewHogar(id);
+            }}
+          />
+          </>
+          )}
+
+          {step === 5 && (
+          <>
           {/* SECCIÓN 9 – INFORMACIÓN COMPLEMENTARIA */}
           <section>
             <SectionHeader
@@ -829,24 +917,6 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
               />
             </div>
           </section>
-
-          <HogaresRecomendados
-            criteria={{
-              ciudad: formData.ciudad_opcion === 'Otra' ? formData.ciudad_otra : formData.ciudad_opcion,
-              zona_localidad: formData.zona_localidad,
-              presupuesto_rango: formData.presupuesto_rango,
-              requiere_oxigeno: formData.requiere_oxigeno,
-              requiere_primer_piso: formData.requiere_primer_piso,
-              tipo_habitacion: formData.tipo_habitacion,
-              ayuda_para_caminar: formData.ayuda_para_caminar,
-              ayuda_para_bano: formData.ayuda_para_bano,
-              ayuda_para_comer: formData.ayuda_para_comer,
-              fecha_ingreso_estimada: formData.fecha_ingreso_estimada,
-            }}
-            onViewDetail={(id) => {
-              if (onViewHogar) onViewHogar(id);
-            }}
-          />
 
           {/* SECCIÓN 10 – ¿CÓMO NOS CONOCIÓ? (opcional) */}
           <section>
@@ -877,6 +947,8 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
               })}
             </div>
           </section>
+          </>
+          )}
 
         </div>
 
@@ -889,19 +961,29 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
           <div className="flex items-center gap-3 px-4 sm:px-6 py-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={step === 1 ? onClose : goBack}
               className="flex-1 sm:flex-none px-5 py-3.5 sm:py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition text-sm font-medium active:scale-95"
             >
-              Cancelar
+              {step === 1 ? 'Cancelar' : 'Atrás'}
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3.5 sm:py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold shadow-sm active:scale-95"
-            >
-              <Save className="w-4 h-4" />
-              {loading ? 'Guardando...' : 'Guardar Lead'}
-            </button>
+            {step < TOTAL_STEPS ? (
+              <button
+                type="button"
+                onClick={goNext}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3.5 sm:py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition text-sm font-semibold shadow-sm active:scale-95"
+              >
+                Siguiente
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3.5 sm:py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold shadow-sm active:scale-95"
+              >
+                <Save className="w-4 h-4" />
+                {loading ? 'Guardando...' : 'Guardar Lead'}
+              </button>
+            )}
           </div>
         </div>
       </form>
