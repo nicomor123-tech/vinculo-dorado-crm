@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   X, Save, Sparkles, CheckCircle2, ClipboardList,
   MapPin, Phone, User, Heart, Home, Calendar, Banknote, Search, Check,
@@ -200,6 +200,13 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
   const [formData, setFormData] = useState<FormData>(initialForm);
   const [savedSummary, setSavedSummary] = useState<string | null>(null);
 
+  // Bloquea el scroll del fondo mientras el modal está abierto.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
@@ -342,8 +349,8 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
 
   if (savedSummary !== null) {
     return (
-      <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto flex flex-col sm:items-start sm:justify-center sm:p-4">
-        <div className="bg-white sm:rounded-xl shadow-2xl w-full sm:max-w-2xl sm:my-16 flex-1 sm:flex-none">
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-stretch sm:items-center justify-center p-0 sm:p-4">
+        <div className="bg-white sm:rounded-xl shadow-2xl w-full h-full sm:h-auto sm:max-w-2xl sm:max-h-[90vh] overflow-y-auto flex flex-col">
           <div className="px-6 pt-6 pb-2 flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
               <CheckCircle2 className="w-6 h-6 text-green-600" />
@@ -412,19 +419,19 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto flex flex-col sm:items-start sm:justify-center sm:p-4">
-      <div className="bg-white sm:rounded-xl shadow-2xl w-full sm:max-w-3xl sm:my-8 flex-1 sm:flex-none flex flex-col">
-        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200 sticky top-0 bg-white sm:rounded-t-xl z-10 flex-shrink-0">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-stretch sm:items-center justify-center p-0 sm:p-4">
+      <form onSubmit={handleSubmit} className="bg-white w-full h-full sm:h-auto sm:max-w-2xl sm:max-h-[90vh] sm:rounded-xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200 bg-white flex-shrink-0">
           <div>
             <h2 className="text-lg sm:text-xl font-bold text-gray-900">Nuevo Lead</h2>
             <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">Sigue el guión de ventas para capturar la información</p>
           </div>
-          <button onClick={onClose} className="p-2.5 hover:bg-gray-100 rounded-xl transition active:scale-95">
+          <button type="button" onClick={onClose} className="p-2.5 hover:bg-gray-100 rounded-xl transition active:scale-95">
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-4 sm:px-6 py-5 sm:py-6 space-y-7 sm:space-y-8 flex-1 overflow-y-auto">
+        <div className="px-4 sm:px-6 py-5 sm:py-6 space-y-7 sm:space-y-8 flex-1 overflow-y-auto">
 
           {/* SECCIÓN 1 – DATOS DEL CONTACTO */}
           <section>
@@ -860,13 +867,15 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
             </div>
           </section>
 
+        </div>
+
+        <div className="border-t border-gray-200 bg-white flex-shrink-0 pb-safe">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+            <div className="mx-4 sm:mx-6 mt-3 bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-lg text-sm">
               {error}
             </div>
           )}
-
-          <div className="flex items-center gap-3 pt-4 border-t border-gray-200 sticky bottom-0 bg-white sm:static sm:bg-transparent pb-safe">
+          <div className="flex items-center gap-3 px-4 sm:px-6 py-3">
             <button
               type="button"
               onClick={onClose}
@@ -883,8 +892,8 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
               {loading ? 'Guardando...' : 'Guardar Lead'}
             </button>
           </div>
-        </form>
-      </div>
+        </div>
+      </form>
     </div>
   );
 }
