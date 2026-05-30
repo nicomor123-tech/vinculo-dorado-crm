@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   X, Save, Sparkles, CheckCircle2, ClipboardList,
   MapPin, Phone, User, Heart, Home, Calendar, Banknote, Search, Check,
@@ -199,12 +199,23 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
   const [error, setError] = useState('');
   const [formData, setFormData] = useState<FormData>(initialForm);
   const [savedSummary, setSavedSummary] = useState<string | null>(null);
+  const scrollBodyRef = useRef<HTMLDivElement>(null);
+  const firstFieldRef = useRef<HTMLInputElement>(null);
 
   // Bloquea el scroll del fondo mientras el modal está abierto.
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  // El cuerpo del formulario debe arrancar arriba del todo: reseteamos el
+  // scroll interno y enfocamos el primer campo SIN que el navegador haga
+  // scroll automático (preventScroll), que era lo que dejaba el modal
+  // abierto a la altura de "Situación médica" en lugar de los datos del contacto.
+  useLayoutEffect(() => {
+    if (scrollBodyRef.current) scrollBodyRef.current.scrollTop = 0;
+    firstFieldRef.current?.focus({ preventScroll: true });
   }, []);
 
   const handleChange = (
@@ -431,7 +442,7 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
           </button>
         </div>
 
-        <div className="px-4 sm:px-6 py-5 sm:py-6 space-y-7 sm:space-y-8 flex-1 overflow-y-auto">
+        <div ref={scrollBodyRef} className="px-4 sm:px-6 py-5 sm:py-6 space-y-7 sm:space-y-8 flex-1 overflow-y-auto">
 
           {/* SECCIÓN 1 – DATOS DEL CONTACTO */}
           <section>
@@ -447,12 +458,12 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
                   Nombre del contacto <span className="text-red-500">*</span>
                 </label>
                 <input
+                  ref={firstFieldRef}
                   type="text"
                   name="nombre_contacto"
                   value={formData.nombre_contacto}
                   onChange={handleChange}
                   required
-                  autoFocus
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   placeholder="Nombre completo"
                 />
