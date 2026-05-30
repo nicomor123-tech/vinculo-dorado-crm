@@ -4,7 +4,7 @@ import {
   MapPin, Phone, User, Heart, Home, Calendar, Banknote, Search, Check,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { notificar } from '../lib/telegram';
+import { notificarAdminsYEjecutivo } from '../lib/telegram';
 import { useAuth } from '../contexts/AuthContext';
 import { HogaresRecomendados } from './HogaresRecomendados';
 
@@ -326,7 +326,7 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
           `⏱️ Urgencia: ${formData.urgencia}\n` +
           `👩‍💼 Creado por: ${profile?.nombre_completo ?? user.email ?? '—'}\n\n` +
           `🔗 Ver lead: https://crm.vinculodorado.co/leads/${nuevoLeadId}`;
-        notificar([2094733004, 1145747754], mensaje);
+        notificarAdminsYEjecutivo(ejecutivoId, mensaje);
       }
 
       setSavedSummary(buildSummary(formData));

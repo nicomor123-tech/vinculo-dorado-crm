@@ -4,7 +4,8 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { PIPELINE_STAGES, getStageLabel, getStageStrongColor } from '../../lib/pipeline';
 import { createStageTask } from '../../lib/stageTaskAutomation';
-import { notificar } from '../../lib/telegram';
+import { notificarAdminsYEjecutivo } from '../../lib/telegram';
+import { crearComisionSiNoExiste } from '../../lib/comisiones';
 
 interface GestionPanelProps {
   leadId: string;
@@ -303,24 +304,18 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
         }
       }
 
-      // Auto-generate commission when closing as won
-      if (form.nuevaEtapa === 'cierre_ganado' && calcBase > 0) {
-        ops.push(
-          supabase.from('comisiones').insert({
-            lead_id: leadId,
-            hogar_id: comisionForm.hogar_id || null,
-            ejecutivo_id: leadData?.ejecutivo_id || null,
-            valor_primer_mes: calcBase,
-            porcentaje_vinculo: calcPct,
-            valor_comision_total: calcTotal,
-            valor_ejecutivo: calcEjecutivo,
-            valor_vinculo_dorado: calcVD,
-            estado_cobro: 'pendiente',
-          })
-        );
-      }
-
       await Promise.all(ops);
+
+      // Auto-generate commission when closing as won (idempotent — evita duplicados)
+      if (form.nuevaEtapa === 'cierre_ganado' && calcBase > 0) {
+        await crearComisionSiNoExiste({
+          leadId,
+          hogarId: comisionForm.hogar_id || null,
+          ejecutivoId: leadData?.ejecutivo_id || null,
+          valorPrimerMes: calcBase,
+          porcentaje: calcPct,
+        });
+      }
 
       if (etapaCambiada && form.nuevaEtapa === 'escalado_nico') {
         const mensaje =
@@ -330,7 +325,7 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
           `👩‍💼 Escaló: ${profile?.nombre_completo ?? user.email ?? '—'}\n` +
           `📝 Razón: ${razonEscalacion.trim()}\n\n` +
           `🔗 Ver lead: https://crm.vinculodorado.co/leads/${leadId}`;
-        notificar([2094733004], mensaje);
+        notificarAdminsYEjecutivo(leadData?.ejecutivo_id, mensaje);
       }
 
       setForm({

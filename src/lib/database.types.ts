@@ -17,6 +17,7 @@ export interface Database {
           rol: string
           activo: boolean
           telefono: string | null
+          telegram_chat_id: string | null
           created_at: string
           updated_at: string
         }
@@ -27,6 +28,7 @@ export interface Database {
           rol?: string
           activo?: boolean
           telefono?: string | null
+          telegram_chat_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -37,6 +39,7 @@ export interface Database {
           rol?: string
           activo?: boolean
           telefono?: string | null
+          telegram_chat_id?: string | null
           created_at?: string
           updated_at?: string
         }

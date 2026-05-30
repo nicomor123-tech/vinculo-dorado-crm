@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { PIPELINE_STAGES, getStageLabel } from '../lib/pipeline';
+import { crearComisionSiNoExiste } from '../lib/comisiones';
 import { Zap, AlertTriangle, Clock, Minus, Flame, Phone, ChevronRight } from 'lucide-react';
 import type { Database } from '../lib/database.types';
 
@@ -88,6 +89,16 @@ export function KanbanView({ onViewDetail }: KanbanViewProps) {
     setDraggingId(null);
 
     await supabase.from('leads').update({ estado: newStage, updated_at: new Date().toISOString() }).eq('id', draggingId);
+
+    // Al cerrar como ganado, generar la comisión (idempotente) a partir del
+    // presupuesto del lead y el % por defecto (40%). 30% ejecutivo / 70% VD.
+    if (newStage === 'cierre_ganado' && lead.presupuesto_mensual) {
+      crearComisionSiNoExiste({
+        leadId: lead.id,
+        ejecutivoId: lead.ejecutivo_id,
+        valorPrimerMes: lead.presupuesto_mensual,
+      });
+    }
   };
 
   const handleDragEnd = () => {
