@@ -317,13 +317,12 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
     try {
       const asesorId = isValidUUID(profile?.id) ? profile!.id : null;
 
-      // Auto-assign based on role. If profile is null, assume ejecutivo_comercial (safe fallback).
-      const rol = profile?.rol ?? 'ejecutivo_comercial';
-      let ejecutivoId: string | null = null;
-      if (rol === 'ejecutivo_comercial') {
-        ejecutivoId = user.id;
-      }
-      // if 'administrador' → stays null (admins asignan después)
+      // Regla de negocio: TODO lead nuevo llega SIN asignar (ejecutivo_id = null).
+      // Los admins lo asignan por botones de Telegram; si nadie lo asigna en 2h,
+      // un job pg_cron lo auto-asigna al ejecutivo. Antes esto auto-asignaba el
+      // lead a su creador cuando el rol era 'ejecutivo_comercial' (por eso los
+      // leads de Vanessa salían ya asignados a ella).
+      const ejecutivoId: string | null = null;
 
       const { data: insertedRows, error: insertError } = await supabase.from('leads').insert([{
         nombre_adulto_mayor: formData.nombre_adulto_mayor || null,

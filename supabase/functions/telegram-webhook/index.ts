@@ -104,25 +104,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    // 3. Pre-chequeo: ¿el lead ya está asignado?
-    const checkRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/leads?id=eq.${leadId}&select=ejecutivo_id,fecha_asignacion`,
-      { headers: restHeaders() },
-    );
-    const rows = await checkRes.json().catch(() => []);
-    if (!Array.isArray(rows) || rows.length === 0) {
-      await answerCallback(callbackId, "Lead no encontrado");
-      return ok();
-    }
-    const lead = rows[0];
-    if (lead.ejecutivo_id || lead.fecha_asignacion) {
-      await answerCallback(callbackId, "Ya estaba asignado");
-      return ok();
-    }
-
-    // 4. Asignación atómica: solo si sigue sin ejecutivo (gana el primer toque).
+    // 3. (Re)asignación: SIEMPRE asigna al target elegido. Cada toque manda;
+    //    los admins pueden reasignar un lead cuantas veces quieran.
     const patchRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/leads?id=eq.${leadId}&ejecutivo_id=is.null`,
+      `${SUPABASE_URL}/rest/v1/leads?id=eq.${leadId}`,
       {
         method: "PATCH",
         headers: restHeaders({ Prefer: "return=representation" }),
@@ -134,12 +119,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
     const updated = await patchRes.json().catch(() => []);
     if (!patchRes.ok || !Array.isArray(updated) || updated.length === 0) {
-      // Otro admin ganó la carrera entre el chequeo y el update.
-      await answerCallback(callbackId, "Ya estaba asignado");
+      await answerCallback(callbackId, "No se encontró el lead");
       return ok();
     }
 
-    // 5. Si es el ejecutivo, avisarle por Telegram SOLO si tiene chat_id.
+    // 4. Si es el ejecutivo, avisarle por Telegram SOLO si tiene chat_id.
     if (target === "eje") {
       try {
         const profRes = await fetch(
@@ -165,7 +149,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    // 6. Editar el mensaje original y quitar los botones.
+    // 5. Editar el mensaje original y quitar los botones.
     if (chatId != null && messageId != null) {
       await tg("editMessageText", {
         chat_id: chatId,

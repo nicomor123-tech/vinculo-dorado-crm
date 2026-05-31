@@ -12,6 +12,10 @@ node_modules/
 dist/
 dist-ssr/
 
+# Supabase CLI temp state + local secrets SQL
+supabase/.temp/
+SQL_DASHBOARD_asignacion_leads.sql
+
 # Logs
 *.log
 npm-debug.log*
