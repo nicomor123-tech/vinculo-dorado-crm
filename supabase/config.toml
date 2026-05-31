@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.auto-assign-leads]
 verify_jwt = false
+
+[functions.recordatorios-gestiones]
+verify_jwt = false

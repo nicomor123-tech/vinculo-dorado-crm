@@ -87,6 +87,12 @@ export interface Database {
           fecha_asignacion: string | null
           intentos_fallidos: number
           ultimo_intento_fallido: string | null
+          proxima_contactabilidad: string | null
+          proxima_accion: string | null
+          recordatorios_enviados: number
+          ultimo_recordatorio: string | null
+          escalado_supervision: boolean
+          recordatorio_ref: string | null
           created_at: string
           updated_at: string
         }
@@ -132,6 +138,12 @@ export interface Database {
           fecha_asignacion?: string | null
           intentos_fallidos?: number
           ultimo_intento_fallido?: string | null
+          proxima_contactabilidad?: string | null
+          proxima_accion?: string | null
+          recordatorios_enviados?: number
+          ultimo_recordatorio?: string | null
+          escalado_supervision?: boolean
+          recordatorio_ref?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -177,6 +189,12 @@ export interface Database {
           fecha_asignacion?: string | null
           intentos_fallidos?: number
           ultimo_intento_fallido?: string | null
+          proxima_contactabilidad?: string | null
+          proxima_accion?: string | null
+          recordatorios_enviados?: number
+          ultimo_recordatorio?: string | null
+          escalado_supervision?: boolean
+          recordatorio_ref?: string | null
           created_at?: string
           updated_at?: string
         }

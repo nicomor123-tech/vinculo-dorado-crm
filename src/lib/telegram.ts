@@ -55,6 +55,12 @@ export async function notificarNuevoLead(
 
 // Notifica SIEMPRE a los admins y, si el ejecutivo asignado tiene
 // telegram_chat_id, también a él. Fire-and-forget: nunca lanza.
+// Notifica SOLO a los admins (sin botones). Fire-and-forget.
+// Se usa para eventos clave de pipeline (visita agendada, cierre ganado/perdido).
+export async function notificarAdmins(mensaje: string): Promise<void> {
+  await notificar(ADMIN_CHAT_IDS, mensaje);
+}
+
 export async function notificarAdminsYEjecutivo(
   ejecutivoId: string | null | undefined,
   mensaje: string,

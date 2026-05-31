@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { ClipboardList, Save, Phone, Mail, MessageSquare, Eye, MoreHorizontal, ArrowRight, Calendar, CheckCircle2, Trophy, PhoneOff, Plus } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import type { Database } from '../../lib/database.types';
 import { useAuth } from '../../contexts/AuthContext';
 import { PIPELINE_STAGES, getStageLabel, getStageStrongColor } from '../../lib/pipeline';
 import { createStageTask } from '../../lib/stageTaskAutomation';
-import { notificarAdminsYEjecutivo } from '../../lib/telegram';
+import { notificarAdminsYEjecutivo, notificarAdmins } from '../../lib/telegram';
 import { crearComisionSiNoExiste } from '../../lib/comisiones';
 
 interface GestionPanelProps {
@@ -33,6 +34,9 @@ const TIPO_OPTIONS = [
 ];
 
 const noRequiereProximoContacto = ['no_contesta', 'cierre_ganado', 'cierre_perdido', 'fallecido'];
+
+// Etapas en las que SÍ se avisa a los admins por Telegram (eventos clave del pipeline).
+const ETAPAS_NOTIFICAR_ADMIN = ['visitas_programadas', 'cierre_ganado', 'cierre_perdido'];
 
 const ACCION_OPTIONS = [
   'Llamar para confirmar visita',
@@ -231,16 +235,11 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
     try {
       const ops: Promise<unknown>[] = [];
 
+      const nowIso = new Date().toISOString();
+
       if (etapaCambiada) {
         const oldLabel = getStageLabel(estadoActual);
         const newLabel = getStageLabel(form.nuevaEtapa);
-
-        ops.push(
-          supabase
-            .from('leads')
-            .update({ estado: form.nuevaEtapa, updated_at: new Date().toISOString() })
-            .eq('id', leadId)
-        );
 
         ops.push(
           supabase.from('activity_log').insert({
@@ -304,6 +303,33 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
         }
       }
 
+      // Persistir la próxima contactabilidad (fecha+hora) a nivel de lead y
+      // reiniciar los contadores del motor de recordatorios cuando el ejecutivo
+      // atiende: cambia de etapa o fija una nueva próxima contactabilidad.
+      const leadPatch: Database['public']['Tables']['leads']['Update'] = {};
+      let resetRecordatorios = false;
+
+      if (etapaCambiada) {
+        leadPatch.estado = form.nuevaEtapa;
+        resetRecordatorios = true;
+      }
+      if (form.proximaFecha) {
+        const proxIso = new Date(form.proximaFecha).toISOString();
+        leadPatch.proxima_contactabilidad = proxIso;
+        leadPatch.proxima_accion = form.proximaAccion || null;
+        leadPatch.recordatorio_ref = proxIso; // sincroniza el motor, evita doble reset
+        resetRecordatorios = true;
+      }
+      if (resetRecordatorios) {
+        leadPatch.recordatorios_enviados = 0;
+        leadPatch.ultimo_recordatorio = null;
+        leadPatch.escalado_supervision = false;
+      }
+      if (Object.keys(leadPatch).length > 0) {
+        leadPatch.updated_at = nowIso;
+        ops.push(supabase.from('leads').update(leadPatch).eq('id', leadId));
+      }
+
       await Promise.all(ops);
 
       // Auto-generate commission when closing as won (idempotent — evita duplicados)
@@ -326,6 +352,26 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
           `📝 Razón: ${razonEscalacion.trim()}\n\n` +
           `🔗 Ver lead: https://crm.vinculodorado.co/leads/${leadId}`;
         notificarAdminsYEjecutivo(leadData?.ejecutivo_id, mensaje);
+      }
+
+      // Aviso a los admins SOLO en los eventos clave del pipeline
+      // (visita agendada, cierre ganado, cierre perdido). Fire-and-forget.
+      if (etapaCambiada && ETAPAS_NOTIFICAR_ADMIN.includes(form.nuevaEtapa)) {
+        const cliente = leadData?.nombre_contacto ?? '—';
+        const ejecutivoNombre = profile?.nombre_completo ?? user.email ?? '—';
+        const link = `https://crm.vinculodorado.co/leads/${leadId}`;
+        let mensaje: string;
+        if (form.nuevaEtapa === 'visitas_programadas') {
+          mensaje =
+            `📅 <b>Visita agendada</b>\n👤 ${cliente}\n👩‍💼 Ejecutivo: ${ejecutivoNombre}\n🔗 ${link}`;
+        } else if (form.nuevaEtapa === 'cierre_ganado') {
+          mensaje =
+            `🏆 <b>Cierre GANADO</b>\n👤 ${cliente}\n👩‍💼 Ejecutivo: ${ejecutivoNombre}\n🔗 ${link}`;
+        } else {
+          mensaje =
+            `❌ <b>Cierre perdido</b>\n👤 ${cliente}\n👩‍💼 Ejecutivo: ${ejecutivoNombre}\n🔗 ${link}`;
+        }
+        notificarAdmins(mensaje);
       }
 
       setForm({

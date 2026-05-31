@@ -14,7 +14,7 @@ dist-ssr/
 
 # Supabase CLI temp state + local secrets SQL
 supabase/.temp/
-SQL_DASHBOARD_asignacion_leads.sql
+SQL_DASHBOARD_*.sql
 
 # Logs
 *.log
