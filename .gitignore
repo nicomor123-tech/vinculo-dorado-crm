@@ -29,3 +29,5 @@ Thumbs.db
 
 # TypeScript cache
 *.tsbuildinfo
+salida/
+salida.zip
