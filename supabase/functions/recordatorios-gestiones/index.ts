@@ -22,9 +22,6 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
 
-// Admins que reciben el escalamiento: Nico, Jhonatan.
-const ADMIN_CHAT_IDS: number[] = [2094733004, 1145747754];
-
 // Etapas inactivas (no se recuerda).
 const ETAPAS_INACTIVAS = ["no_contesta", "cierre_ganado", "cierre_perdido", "fallecido"];
 
@@ -81,6 +78,32 @@ function fmtFechaCO(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+// Chat IDs de los administradores activos, leídos de profiles (cero hardcode).
+async function getAdminChatIds(): Promise<(number | string)[]> {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?rol=eq.administrador&activo=eq.true&telegram_chat_id=not.is.null&select=telegram_chat_id`,
+      { headers: restHeaders() },
+    );
+    const rows = await res.json().catch(() => []);
+    if (Array.isArray(rows)) {
+      return rows.map((r: any) => r.telegram_chat_id).filter(Boolean);
+    }
+  } catch (err) {
+    console.error("No se pudieron leer los admins:", err);
+  }
+  return [];
+}
+
+// Memo simple (la function puede atender varios crons con la misma instancia).
+let adminCache: { ids: (number | string)[]; at: number } | null = null;
+async function getAdminChatIdsCached(): Promise<(number | string)[]> {
+  if (adminCache && Date.now() - adminCache.at < 5 * 60_000) return adminCache.ids;
+  const ids = await getAdminChatIds();
+  adminCache = { ids, at: Date.now() };
+  return ids;
 }
 
 // Lee nombre_completo + telegram_chat_id de un perfil (con cache).
@@ -230,7 +253,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           `🚨 <b>${cliente}</b> sin atención tras ${MAX_RECORDATORIOS} recordatorios — ` +
           `ejecutivo: ${prof.nombre}.\n` +
           `Pendiente: ${accion}.\n🔗 ${link}`;
-        for (const adminId of ADMIN_CHAT_IDS) {
+        for (const adminId of await getAdminChatIdsCached()) {
           await tgSend(adminId, msg);
         }
         nuevoEscalado = true;
@@ -245,6 +268,62 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
     }
 
+    // -----------------------------------------------------------------
+    // CITAS PRÓXIMAS: aviso único ~1h antes de la proxima_contactabilidad,
+    // agrupado por ejecutivo (anti-spam: 1 mensaje por corrida aunque haya
+    // varias citas). Idempotente vía leads.cita_avisada_ref.
+    // En try/catch propio: si la columna aún no existe, no rompe lo demás.
+    // -----------------------------------------------------------------
+    let citasAvisadas = 0;
+    try {
+      const enUnaHora = new Date(nowMs + 60 * 60 * 1000).toISOString();
+      const urlCitas = `${SUPABASE_URL}/rest/v1/leads` +
+        `?ejecutivo_id=not.is.null` +
+        `&estado=not.in.(${inList})` +
+        `&proxima_contactabilidad=gte.${encodeURIComponent(nowIso)}` +
+        `&proxima_contactabilidad=lte.${encodeURIComponent(enUnaHora)}` +
+        `&select=id,nombre_contacto,nombre_adulto_mayor,ejecutivo_id,proxima_contactabilidad,proxima_accion,cita_avisada_ref` +
+        `&order=proxima_contactabilidad.asc`;
+      const resCitas = await fetch(urlCitas, { headers: restHeaders() });
+      const citas = await resCitas.json().catch(() => []);
+      if (resCitas.ok && Array.isArray(citas) && citas.length > 0) {
+        // Solo las que no se han avisado para ESTA fecha de cita.
+        const pendientesAviso = citas.filter((c: any) =>
+          !c.cita_avisada_ref || Date.parse(c.cita_avisada_ref) !== Date.parse(c.proxima_contactabilidad)
+        );
+        // Agrupar por ejecutivo.
+        const porEjecutivo = new Map<string, any[]>();
+        for (const c of pendientesAviso) {
+          const arr = porEjecutivo.get(c.ejecutivo_id) ?? [];
+          arr.push(c);
+          porEjecutivo.set(c.ejecutivo_id, arr);
+        }
+        for (const [ejecutivoId, items] of porEjecutivo) {
+          const prof = await getProfile(ejecutivoId, profCache);
+          if (prof.chatId) {
+            const lineas = items.map((c: any) => {
+              const hora = new Date(c.proxima_contactabilidad).toLocaleTimeString("es-CO", {
+                timeZone: "America/Bogota", hour: "numeric", minute: "2-digit", hour12: true,
+              });
+              const cliente = c.nombre_contacto || c.nombre_adulto_mayor || "el cliente";
+              return `• <b>${hora}</b> — ${c.proxima_accion || "Contactar"} con <b>${cliente}</b>\n  🔗 https://crm.vinculodorado.co/leads/${c.id}`;
+            }).join("\n");
+            const titulo = items.length === 1
+              ? `⏰ <b>Tienes un contacto en menos de 1 hora</b>`
+              : `⏰ <b>Tienes ${items.length} contactos en la próxima hora</b>`;
+            await tgSend(prof.chatId, `${titulo}\n\n${lineas}`);
+          }
+          // Marcar avisadas aunque no tenga chat (no insistir cada 15 min).
+          for (const c of items) {
+            await patchLead(c.id, { cita_avisada_ref: c.proxima_contactabilidad });
+            citasAvisadas++;
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Aviso de citas próximas falló (no bloqueante):", err);
+    }
+
     return new Response(
       JSON.stringify({
         ok: true,
@@ -252,6 +331,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         candidatos: leads.length,
         recordados,
         escalados,
+        citas_avisadas: citasAvisadas,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );

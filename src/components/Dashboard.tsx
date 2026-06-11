@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Users, UserCheck, UserX, CheckCircle2, Clock, TrendingUp,
+  Users, UserCheck, CheckCircle2, Clock, TrendingUp,
   CircleUser as UserCircle, ListTodo, Send, Eye, Zap, AlertTriangle,
   Flame, ChevronRight,
 } from 'lucide-react';

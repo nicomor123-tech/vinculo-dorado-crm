@@ -16,6 +16,15 @@ dist-ssr/
 supabase/.temp/
 SQL_DASHBOARD_*.sql
 
+# Prompt de misión y documentos operativos con secretos — NUNCA subir
+PROMPT_CODE_VINCULO.md
+SQL.md
+DEPLOY.md
+RESUMEN.md
+PRUEBAS.md
+REPORTE_NICO.md
+vinculo-dorado-dist.zip
+
 # Logs
 *.log
 npm-debug.log*

@@ -479,7 +479,7 @@ export function ComisionesModule() {
         lead_contacto:    c.lead_id    ? leadsMap[c.lead_id]?.nombre_contacto      : undefined,
         hogar_nombre:     c.hogar_id   ? hogaresMap[c.hogar_id]                    : undefined,
         ejecutivo_nombre: c.ejecutivo_id ? profilesMap[c.ejecutivo_id]             : undefined,
-        adelantos:        (c.adelantos_comision ?? []) as AdelantoRow[],
+        adelantos:        ((c as Record<string, unknown>).adelantos_comision ?? []) as AdelantoRow[],
       }));
 
       setComisiones(enriched);

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
-  Search, Plus, Phone, CircleUser as UserCircle,
-  Zap, AlertTriangle, Clock, Minus, Calendar, Flame, Filter,
+  Search, Plus, Phone,
+  Zap, AlertTriangle, Clock, Minus, Flame, Filter,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';

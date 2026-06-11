@@ -14,6 +14,8 @@ import { ProposalPage } from './components/ProposalPage';
 import { KanbanView } from './components/KanbanView';
 import { UserManagement } from './components/UserManagement';
 import { ComisionesModule } from './components/ComisionesModule';
+import { InteligenciaModule } from './components/inteligencia/InteligenciaModule';
+import { PlantillasModule } from './components/plantillas/PlantillasModule';
 
 const proposalMatch = window.location.pathname.match(/^\/propuesta\/([^/]+)/);
 const PUBLIC_PROPOSAL_ID = proposalMatch ? proposalMatch[1] : null;
@@ -21,9 +23,15 @@ const PUBLIC_PROPOSAL_ID = proposalMatch ? proposalMatch[1] : null;
 const leadMatch = window.location.pathname.match(/^\/leads\/([^/]+)/);
 const INITIAL_LEAD_ID = leadMatch ? leadMatch[1] : null;
 
+const INITIAL_VIEW = INITIAL_LEAD_ID
+  ? 'leads'
+  : window.location.pathname.startsWith('/inteligencia')
+  ? 'inteligencia'
+  : 'dashboard';
+
 function AppContent() {
   const { user, loading } = useAuth();
-  const [currentView, setCurrentView] = useState(INITIAL_LEAD_ID ? 'leads' : 'dashboard');
+  const [currentView, setCurrentView] = useState(INITIAL_VIEW);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(INITIAL_LEAD_ID);
   const [selectedHogarId, setSelectedHogarId] = useState<string | null>(null);
   const [showNewLeadForm, setShowNewLeadForm] = useState(false);
@@ -88,7 +96,11 @@ function AppContent() {
         <HogarDetail hogarId={selectedHogarId} onBack={() => setSelectedHogarId(null)} />
       )}
 
+      {currentView === 'inteligencia' && <InteligenciaModule />}
+
       {currentView === 'comisiones' && <ComisionesModule />}
+
+      {currentView === 'plantillas' && <PlantillasModule />}
 
       {currentView === 'usuarios' && <UserManagement />}
 

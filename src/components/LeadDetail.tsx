@@ -15,6 +15,8 @@ import {
   getStageGroup,
 } from '../lib/pipeline';
 import { GestionPanel } from './lead/GestionPanel';
+import { notificarEjecutivo } from '../lib/telegram';
+import { AnalisisIA } from './lead/AnalisisIA';
 import { LeadNotes } from './lead/LeadNotes';
 import { WhatsAppButton } from './lead/WhatsAppButton';
 import { ProposalBuilder } from './lead/ProposalBuilder';
@@ -352,6 +354,14 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
           : 'Ejecutivo desasignado',
         metadata: { ejecutivo_id: ejecutivoId },
       });
+
+      // Avisar por Telegram al ejecutivo que recibe el lead (si no es quien asigna).
+      if (ejecutivoId && ejecutivoId !== user.id && lead) {
+        notificarEjecutivo(
+          ejecutivoId,
+          `📌 <b>Lead ${lead.ejecutivo_id ? 'reasignado' : 'asignado'} a ti</b>\n👤 ${lead.nombre_contacto || lead.nombre_adulto_mayor}\n🔗 https://crm.vinculodorado.co/leads/${leadId}`,
+        );
+      }
 
       loadLeadData();
     } catch (err) {
@@ -714,11 +724,8 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
               <div className="p-6">
                 {user && (
                   <ProposalBuilder
-                    leadId={leadId}
-                    leadPhone={lead.whatsapp || lead.telefono_principal}
-                    leadContactName={lead.nombre_contacto}
+                    lead={lead}
                     userId={user.id}
-                    leadBudget={lead.presupuesto_mensual}
                     onProposalCreated={loadLeadData}
                   />
                 )}
@@ -729,6 +736,8 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
           </div>
 
           <div className="space-y-6">
+            <AnalisisIA leadId={leadId} />
+
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Información adicional</p>
               <div className="space-y-2.5 text-sm">

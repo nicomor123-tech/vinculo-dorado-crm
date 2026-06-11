@@ -361,7 +361,7 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
         asesor_id: asesorId,
         ejecutivo_id: ejecutivoId,
         fecha_asignacion: ejecutivoId ? new Date().toISOString() : null,
-      }]).select('id').limit(1);
+      } as never]).select('id').limit(1);
       if (insertError) {
         console.error('Insert error:', insertError);
         alert(`Error: ${insertError.message}`);

@@ -147,7 +147,7 @@ export function KanbanView({ onViewDetail }: KanbanViewProps) {
                   width: 240,
                   minHeight: 500,
                   background: isOver ? style.light : '#f9f7f3',
-                  ringColor: style.header,
+                  ['--tw-ring-color' as string]: style.header,
                   border: `1px solid ${isOver ? style.header + '60' : '#e8e2d8'}`,
                 }}
                 onDragOver={(e) => handleDragOver(e, stage.value)}

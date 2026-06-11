@@ -1,22 +1,36 @@
 import { useEffect, useState, useMemo } from 'react';
 import {
   Home, Search, CheckSquare, Square, Send, Link, X, ChevronDown, ChevronUp,
-  ExternalLink, Loader2,
+  ExternalLink, Loader2, Sparkles, MessageSquareText, AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
+import { buildWaLink } from '../../lib/business';
 import type { Database } from '../../lib/database.types';
 
 type Hogar = Database['public']['Tables']['hogares']['Row'];
+type Lead = Database['public']['Tables']['leads']['Row'];
 type Propuesta = Database['public']['Tables']['propuestas']['Row'];
 
+interface PlantillaLite {
+  id: string;
+  nombre: string;
+  contenido: string;
+}
+
 interface ProposalBuilderProps {
-  leadId: string;
-  leadPhone: string;
-  leadContactName: string;
+  lead: Lead;
   userId: string;
-  leadBudget?: number | null;
   onProposalCreated: () => void;
 }
+
+const MAX_SUGERIDOS = 5;
+
+const MENSAJE_FALLBACK =
+  'Hola {{nombre}}, soy {{ejecutivo}} de Vínculo Dorado 💛.\n\n' +
+  'Preparé una propuesta con hogares gerontológicos seleccionados especialmente ' +
+  'según lo que conversamos. La puedes ver aquí:\n{{link}}\n\n' +
+  'Cuando la revises me cuentas cuál te gustaría visitar y coordinamos todo. ¡Quedo pendiente!';
 
 function formatPrecio(v: number | null) {
   if (!v) return '—';
@@ -24,35 +38,96 @@ function formatPrecio(v: number | null) {
   return `$${v.toLocaleString('es-CO')}`;
 }
 
-function buildWhatsAppUrl(rawPhone: string, message: string): string {
-  const digits = rawPhone.replace(/\D/g, '');
-  const normalized = digits.startsWith('57') ? digits : `57${digits}`;
-  return `https://wa.me/${normalized}?text=${encodeURIComponent(message)}`;
+const PRESUPUESTO_MAP: Record<string, { min: number; max: number }> = {
+  'Menor a 2 millones': { min: 0, max: 2_000_000 },
+  'Entre 2 y 4 millones': { min: 2_000_000, max: 4_000_000 },
+  'Entre 4 y 6 millones': { min: 4_000_000, max: 6_000_000 },
+  'Entre 6 y 8 millones': { min: 6_000_000, max: 8_000_000 },
+  'Más de 8 millones': { min: 8_000_000, max: Infinity },
+};
+
+function norm(s: string | null | undefined): string {
+  return (s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
 
-export function ProposalBuilder({
-  leadId,
-  leadPhone,
-  leadContactName,
-  userId,
-  leadBudget,
-  onProposalCreated,
-}: ProposalBuilderProps) {
+// Score de afinidad hogar↔lead con razones visibles (presupuesto, zona,
+// necesidades de cuidado y disponibilidad/frescura del hogar).
+function scoreHogar(h: Hogar, lead: Lead): { score: number; razones: string[] } {
+  let score = 0;
+  const razones: string[] = [];
+
+  // --- Presupuesto ---
+  let presMin: number | null = null, presMax: number | null = null;
+  if (lead.presupuesto_mensual) {
+    presMin = lead.presupuesto_mensual; presMax = lead.presupuesto_mensual;
+  } else if (lead.presupuesto_rango && PRESUPUESTO_MAP[lead.presupuesto_rango]) {
+    presMin = PRESUPUESTO_MAP[lead.presupuesto_rango].min;
+    presMax = PRESUPUESTO_MAP[lead.presupuesto_rango].max;
+  }
+  if (presMin != null && presMax != null) {
+    const desde = h.precio_desde ?? 0;
+    const hasta = h.precio_hasta ?? Number.MAX_SAFE_INTEGER;
+    if (hasta >= presMin && desde <= presMax) {
+      score += 3;
+      razones.push('Presupuesto');
+    }
+  }
+
+  // --- Zona ---
+  const zonaLead = norm(lead.zona_localidad);
+  if (zonaLead) {
+    const zonaHogar = `${norm(h.localidad)} ${norm(h.barrio)}`;
+    if (zonaHogar.includes(zonaLead) || zonaLead.split(' ').some(t => t.length >= 4 && zonaHogar.includes(t))) {
+      score += 3;
+      razones.push('Zona');
+    }
+  }
+  const ciudadLead = norm(lead.ciudad);
+  if (ciudadLead && norm(h.ciudad).includes(ciudadLead)) score += 1;
+
+  // --- Necesidades de cuidado ---
+  if (lead.requiere_oxigeno && h.maneja_oxigeno) { score += 2; razones.push('Oxígeno'); }
+  if (lead.requiere_enfermeria && h.serv_enfermeria_24h) { score += 2; razones.push('Enfermería 24h'); }
+  if (lead.dieta_diabetica && h.dieta_diabetica) { score += 1; razones.push('Dieta diabética'); }
+  if (lead.dieta_blanda && h.dieta_blanda) { score += 1; razones.push('Dieta blanda'); }
+  if (lead.requiere_primer_piso && (h.un_solo_nivel || h.tiene_ascensor)) { score += 2; razones.push('Sin escaleras'); }
+  if (lead.tipo_habitacion === 'Compartida' && h.hab_compartida) score += 1;
+  if (lead.tipo_habitacion === 'Independiente' && (h.hab_privada_bano_privado || h.hab_privada_bano_compartido)) score += 1;
+
+  // --- Disponibilidad y frescura del hogar ---
+  if ((h.habitaciones_disponibles ?? 0) > 0) { score += 2; razones.push('Cupo disponible'); }
+  if (h.estado === 'aprobado') score += 1;
+  const dias = (Date.now() - Date.parse(h.updated_at)) / 86_400_000;
+  if (isFinite(dias) && dias <= 30) score += 1; // info fresca (sistema de frescura)
+
+  return { score, razones };
+}
+
+export function ProposalBuilder({ lead, userId, onProposalCreated }: ProposalBuilderProps) {
+  const { profile } = useAuth();
   const [hogares, setHogares] = useState<Hogar[]>([]);
   const [loadingHogares, setLoadingHogares] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [generating, setGenerating] = useState(false);
-  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
+  const [generated, setGenerated] = useState<{ link: string; mensaje: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [existingProposals, setExistingProposals] = useState<Propuesta[]>([]);
   const [guardrailVisible, setGuardrailVisible] = useState(false);
+  const [plantillas, setPlantillas] = useState<PlantillaLite[]>([]);
+  const [plantillaId, setPlantillaId] = useState<string>('');
+  const [preseleccionado, setPreseleccionado] = useState(false);
+
+  const leadPhone = lead.whatsapp || lead.telefono_principal;
+  const ejecutivoNombre = profile?.nombre_completo?.split(' ')[0] ?? 'tu asesor';
 
   useEffect(() => {
     loadHogares();
     loadExistingProposals();
-  }, [leadId]);
+    loadPlantillas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead.id]);
 
   const loadHogares = async () => {
     setLoadingHogares(true);
@@ -69,46 +144,52 @@ export function ProposalBuilder({
     const { data } = await supabase
       .from('propuestas')
       .select('*')
-      .eq('lead_id', leadId)
+      .eq('lead_id', lead.id)
       .eq('estado', 'activa')
       .order('created_at', { ascending: false });
     setExistingProposals(data || []);
   };
 
-  const budgetResult = useMemo(() => {
-    if (!leadBudget) return { source: hogares, noMatch: false };
-    const matches = hogares.filter(h => {
-      const desde = h.precio_desde ?? 0;
-      const hasta = h.precio_hasta ?? Number.MAX_SAFE_INTEGER;
-      return leadBudget >= desde && leadBudget <= hasta;
-    });
-    if (matches.length > 0) return { source: matches, noMatch: false };
-    // No exact matches — return all sorted by closeness to budget
-    const sorted = [...hogares].sort((a, b) => {
-      const distA = Math.min(
-        Math.abs((a.precio_desde ?? 0) - leadBudget),
-        Math.abs((a.precio_hasta ?? a.precio_desde ?? 0) - leadBudget)
-      );
-      const distB = Math.min(
-        Math.abs((b.precio_desde ?? 0) - leadBudget),
-        Math.abs((b.precio_hasta ?? b.precio_desde ?? 0) - leadBudget)
-      );
-      return distA - distB;
-    });
-    return { source: sorted, noMatch: true };
-  }, [hogares, leadBudget]);
+  const loadPlantillas = async () => {
+    const { data, error } = await supabase
+      .from('plantillas_propuesta')
+      .select('id, nombre, contenido')
+      .eq('activa', true)
+      .order('created_at', { ascending: true });
+    if (!error && data && data.length > 0) {
+      setPlantillas(data as PlantillaLite[]);
+      setPlantillaId((data[0] as PlantillaLite).id);
+    }
+  };
+
+  // Hogares con score, ordenados: pre-filtrado automático según el cliente.
+  const rankeados = useMemo(() => {
+    return hogares
+      .map(h => ({ hogar: h, ...scoreHogar(h, lead) }))
+      .sort((a, b) => b.score - a.score);
+  }, [hogares, lead]);
+
+  const sugeridosIds = useMemo(
+    () => new Set(rankeados.filter(r => r.score >= 4).slice(0, MAX_SUGERIDOS).map(r => r.hogar.id)),
+    [rankeados],
+  );
+
+  // Pre-selección automática (top 3) la primera vez que se expande.
+  useEffect(() => {
+    if (expanded && !preseleccionado && rankeados.length > 0) {
+      const top = rankeados.filter(r => r.score >= 4).slice(0, 3).map(r => r.hogar.id);
+      if (top.length > 0) setSelected(new Set(top));
+      setPreseleccionado(true);
+    }
+  }, [expanded, preseleccionado, rankeados]);
 
   const filtered = useMemo(() => {
-    const source = budgetResult.source;
-    if (!search.trim()) return source;
-    const t = search.toLowerCase();
-    return source.filter(
-      (h) =>
-        h.nombre.toLowerCase().includes(t) ||
-        (h.localidad ?? '').toLowerCase().includes(t) ||
-        (h.ciudad ?? '').toLowerCase().includes(t)
+    if (!search.trim()) return rankeados;
+    const t = norm(search);
+    return rankeados.filter(({ hogar: h }) =>
+      norm(h.nombre).includes(t) || norm(h.localidad).includes(t) || norm(h.ciudad).includes(t) || norm(h.barrio).includes(t),
     );
-  }, [budgetResult, search]);
+  }, [rankeados, search]);
 
   const toggleHogar = (id: string) => {
     setSelected((prev) => {
@@ -117,6 +198,14 @@ export function ProposalBuilder({
       else next.add(id);
       return next;
     });
+  };
+
+  const resolverMensaje = (link: string): string => {
+    const plantilla = plantillas.find(p => p.id === plantillaId)?.contenido ?? MENSAJE_FALLBACK;
+    return plantilla
+      .replace(/\{\{nombre\}\}/g, lead.nombre_contacto || 'familia')
+      .replace(/\{\{ejecutivo\}\}/g, ejecutivoNombre)
+      .replace(/\{\{link\}\}/g, link);
   };
 
   const handleGenerate = async () => {
@@ -131,10 +220,11 @@ export function ProposalBuilder({
       const { data: propuesta, error: propErr } = await supabase
         .from('propuestas')
         .insert({
-          lead_id: leadId,
+          lead_id: lead.id,
           creado_por: userId,
           titulo: 'Opciones de hogares recomendados',
           estado: 'activa',
+          nombre_cliente: lead.nombre_contacto || null,
         })
         .select()
         .single();
@@ -146,20 +236,24 @@ export function ProposalBuilder({
         hogar_id: hogarId,
         orden: i,
       }));
-
       const { error: itemErr } = await supabase.from('propuesta_hogares').insert(items);
       if (itemErr) throw itemErr;
 
+      const link = `${window.location.origin}/propuesta/${propuesta.id}`;
+      const mensaje = resolverMensaje(link);
+
+      // Guardar el mensaje final en la propuesta (queda como registro).
+      await supabase.from('propuestas').update({ mensaje }).eq('id', propuesta.id);
+
       await supabase.from('activity_log').insert({
-        lead_id: leadId,
+        lead_id: lead.id,
         user_id: userId,
-        tipo: 'propuesta_enviada',
+        tipo: 'propuesta_creada',
         descripcion: `Propuesta de hogares generada con ${selected.size} hogar${selected.size !== 1 ? 'es' : ''}`,
         metadata: { propuesta_id: propuesta.id, hogares_count: selected.size },
       });
 
-      const link = `${window.location.origin}/propuesta/${propuesta.id}`;
-      setGeneratedLink(link);
+      setGenerated({ link, mensaje });
       setSelected(new Set());
       setSearch('');
       loadExistingProposals();
@@ -177,9 +271,35 @@ export function ProposalBuilder({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleSendWhatsApp = (link: string) => {
-    const msg = `Hola ${leadContactName}, te comparto algunas opciones de hogares geriátricos que podrían ajustarse a lo que hablamos. Puedes verlos aquí: ${link}`;
-    window.open(buildWhatsAppUrl(leadPhone, msg), '_blank', 'noopener,noreferrer');
+  // Enviar por WhatsApp = evento comercial real: abre el chat con la plantilla
+  // resuelta Y registra la gestión `propuesta_enviada` en el CRM (cronología,
+  // tabla de gestiones y ultima_gestion del lead).
+  const handleSendWhatsApp = async (link: string, mensaje?: string | null) => {
+    const texto = mensaje || resolverMensaje(link);
+    window.open(buildWaLink(leadPhone, texto), '_blank', 'noopener,noreferrer');
+
+    const nowIso = new Date().toISOString();
+    try {
+      await Promise.all([
+        supabase.from('notas_seguimiento').insert({
+          lead_id: lead.id,
+          asesor_id: userId,
+          tipo_seguimiento: 'propuesta_enviada',
+          descripcion: `Propuesta de hogares enviada por WhatsApp.\n${link}`,
+        }),
+        supabase.from('activity_log').insert({
+          lead_id: lead.id,
+          user_id: userId,
+          tipo: 'propuesta_enviada',
+          descripcion: 'Propuesta enviada al cliente por WhatsApp',
+          metadata: { link },
+        }),
+        supabase.from('leads').update({ ultima_gestion: nowIso, updated_at: nowIso }).eq('id', lead.id),
+      ]);
+      onProposalCreated();
+    } catch (e) {
+      console.error('Error registrando envío de propuesta:', e);
+    }
   };
 
   const proposalUrl = (id: string) => `${window.location.origin}/propuesta/${id}`;
@@ -222,6 +342,11 @@ export function ProposalBuilder({
                   >
                     <Link className="w-4 h-4 text-gray-400 flex-shrink-0" />
                     <span className="text-xs text-gray-600 flex-1 truncate">{link}</span>
+                    {(p.views ?? 0) > 0 && (
+                      <span className="text-[10px] font-bold text-teal-700 bg-teal-50 border border-teal-200 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                        {p.views} vista{(p.views ?? 0) !== 1 ? 's' : ''}
+                      </span>
+                    )}
                     <button
                       onClick={() => handleCopy(link)}
                       className="text-xs text-blue-600 hover:text-blue-800 font-medium flex-shrink-0"
@@ -229,7 +354,7 @@ export function ProposalBuilder({
                       Copiar
                     </button>
                     <button
-                      onClick={() => handleSendWhatsApp(link)}
+                      onClick={() => handleSendWhatsApp(link, p.mensaje)}
                       className="text-xs text-green-600 hover:text-green-800 font-medium flex-shrink-0"
                     >
                       WhatsApp
@@ -248,53 +373,81 @@ export function ProposalBuilder({
             </div>
           )}
 
-          {generatedLink && (
+          {generated && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
               <p className="text-sm font-semibold text-green-800">Propuesta generada</p>
               <div className="flex items-center gap-2 bg-white border border-green-200 rounded-lg px-3 py-2">
                 <Link className="w-4 h-4 text-green-600 flex-shrink-0" />
-                <span className="text-xs text-gray-700 flex-1 truncate">{generatedLink}</span>
+                <span className="text-xs text-gray-700 flex-1 truncate">{generated.link}</span>
                 <button
-                  onClick={() => handleCopy(generatedLink)}
+                  onClick={() => handleCopy(generated.link)}
                   className="text-xs font-medium text-blue-600 hover:text-blue-800 flex-shrink-0"
                 >
                   {copied ? 'Copiado!' : 'Copiar'}
                 </button>
               </div>
+              <p className="text-xs text-gray-600 bg-white border border-green-100 rounded-lg p-2.5 whitespace-pre-line leading-relaxed max-h-28 overflow-y-auto">
+                {generated.mensaje}
+              </p>
               <div className="flex gap-2">
                 <button
-                  onClick={() => handleSendWhatsApp(generatedLink)}
+                  onClick={() => handleSendWhatsApp(generated.link, generated.mensaje)}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition"
                 >
                   <Send className="w-4 h-4" />
                   Enviar por WhatsApp
                 </button>
                 <button
-                  onClick={() => setGeneratedLink(null)}
+                  onClick={() => setGenerated(null)}
                   className="p-2.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition text-gray-500"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
+              <p className="text-[11px] text-green-700">
+                Al enviarlo se registra automáticamente la gestión "propuesta enviada" en la cronología.
+              </p>
+            </div>
+          )}
+
+          {/* Selector de plantilla */}
+          {plantillas.length > 0 && (
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-1.5">
+                <MessageSquareText className="w-4 h-4 text-gray-400" />
+                Plantilla del mensaje
+              </p>
+              <select
+                value={plantillaId}
+                onChange={(e) => setPlantillaId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+              >
+                {plantillas.map((p) => (
+                  <option key={p.id} value={p.id}>{p.nombre}</option>
+                ))}
+              </select>
             </div>
           )}
 
           <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">
+            <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2 flex-wrap">
               Seleccionar hogares
               {selected.size > 0 && (
-                <span className="ml-2 text-blue-600 text-xs">({selected.size} seleccionado{selected.size !== 1 ? 's' : ''})</span>
+                <span className="text-blue-600 text-xs">({selected.size} seleccionado{selected.size !== 1 ? 's' : ''})</span>
               )}
-              {leadBudget && !budgetResult.noMatch && (
-                <span className="ml-2 text-teal-600 text-xs">· Filtrados por presupuesto</span>
-              )}
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-full">
+                <Sparkles className="w-3 h-3" />
+                Pre-filtrados según presupuesto, zona y necesidades
+              </span>
             </p>
-            {budgetResult.noMatch && (
+
+            {selected.size > MAX_SUGERIDOS && (
               <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                <span className="text-amber-500 font-bold">!</span>
-                Sin hogares en rango de presupuesto. Mostrando opciones más cercanas.
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                Recomendado máximo {MAX_SUGERIDOS} hogares por propuesta: muchas opciones confunden a la familia.
               </div>
             )}
+
             <div className="relative mb-3">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
@@ -313,9 +466,10 @@ export function ProposalBuilder({
             ) : filtered.length === 0 ? (
               <p className="text-sm text-gray-500 py-4 text-center">No hay hogares disponibles</p>
             ) : (
-              <div className="max-h-64 overflow-y-auto space-y-1.5 pr-1">
-                {filtered.map((hogar) => {
+              <div className="max-h-72 overflow-y-auto space-y-1.5 pr-1">
+                {filtered.map(({ hogar, razones }) => {
                   const isSelected = selected.has(hogar.id);
+                  const esSugerido = sugeridosIds.has(hogar.id);
                   return (
                     <button
                       key={hogar.id}
@@ -323,6 +477,8 @@ export function ProposalBuilder({
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition ${
                         isSelected
                           ? 'border-blue-400 bg-blue-50'
+                          : esSugerido
+                          ? 'border-teal-200 bg-teal-50/40 hover:border-teal-300'
                           : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                       }`}
                     >
@@ -332,7 +488,14 @@ export function ProposalBuilder({
                         <Square className="w-4 h-4 text-gray-400 flex-shrink-0" />
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{hogar.nombre}</p>
+                        <p className="text-sm font-medium text-gray-900 truncate flex items-center gap-1.5">
+                          {hogar.nombre}
+                          {esSugerido && (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-teal-700 bg-teal-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                              <Sparkles className="w-2.5 h-2.5" /> Sugerido
+                            </span>
+                          )}
+                        </p>
                         <p className="text-xs text-gray-500 truncate">
                           {[hogar.localidad, hogar.ciudad].filter(Boolean).join(', ')}
                           {(hogar.precio_desde || hogar.precio_hasta) && (
@@ -342,6 +505,9 @@ export function ProposalBuilder({
                             </span>
                           )}
                         </p>
+                        {razones.length > 0 && (
+                          <p className="text-[10px] text-teal-600 truncate mt-0.5">✓ {razones.join(' · ')}</p>
+                        )}
                       </div>
                     </button>
                   );

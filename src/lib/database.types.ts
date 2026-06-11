@@ -6,7 +6,11 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export interface Database {
+// Nota: supabase-js v2.5x exige que cada tabla declare Relationships y que el
+// esquema tenga Views/Functions; sin eso la inferencia degrada todo a `never`.
+// DatabaseDef es la definición "a mano"; Database (abajo) le inyecta esos
+// campos automáticamente a todas las tablas.
+interface DatabaseDef {
   public: {
     Tables: {
       profiles: {
@@ -18,6 +22,7 @@ export interface Database {
           activo: boolean
           telefono: string | null
           telegram_chat_id: string | null
+          telegram_alias: string | null
           created_at: string
           updated_at: string
         }
@@ -29,6 +34,7 @@ export interface Database {
           activo?: boolean
           telefono?: string | null
           telegram_chat_id?: string | null
+          telegram_alias?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -40,6 +46,7 @@ export interface Database {
           activo?: boolean
           telefono?: string | null
           telegram_chat_id?: string | null
+          telegram_alias?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -93,6 +100,9 @@ export interface Database {
           ultimo_recordatorio: string | null
           escalado_supervision: boolean
           recordatorio_ref: string | null
+          ultima_gestion: string | null
+          cita_avisada_ref: string | null
+          motivo_perdida: string | null
           created_at: string
           updated_at: string
         }
@@ -144,6 +154,9 @@ export interface Database {
           ultimo_recordatorio?: string | null
           escalado_supervision?: boolean
           recordatorio_ref?: string | null
+          ultima_gestion?: string | null
+          cita_avisada_ref?: string | null
+          motivo_perdida?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -195,6 +208,9 @@ export interface Database {
           ultimo_recordatorio?: string | null
           escalado_supervision?: boolean
           recordatorio_ref?: string | null
+          ultima_gestion?: string | null
+          cita_avisada_ref?: string | null
+          motivo_perdida?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -264,6 +280,8 @@ export interface Database {
           tiene_ascensor: boolean
           solo_escaleras: boolean
           un_solo_nivel: boolean
+          maneja_demencia: boolean
+          maneja_silla_ruedas: boolean
           descripcion: string | null
           estado: string
           registrado_por: string | null
@@ -308,6 +326,8 @@ export interface Database {
           tiene_ascensor?: boolean
           solo_escaleras?: boolean
           un_solo_nivel?: boolean
+          maneja_demencia?: boolean
+          maneja_silla_ruedas?: boolean
           descripcion?: string | null
           estado?: string
           registrado_por?: string | null
@@ -352,6 +372,8 @@ export interface Database {
           tiene_ascensor?: boolean
           solo_escaleras?: boolean
           un_solo_nivel?: boolean
+          maneja_demencia?: boolean
+          maneja_silla_ruedas?: boolean
           descripcion?: string | null
           estado?: string
           registrado_por?: string | null
@@ -491,6 +513,7 @@ export interface Database {
           creado_por: string
           titulo: string
           mensaje: string | null
+          nombre_cliente: string | null
           estado: string
           views: number
           last_opened_at: string | null
@@ -503,6 +526,7 @@ export interface Database {
           creado_por: string
           titulo?: string
           mensaje?: string | null
+          nombre_cliente?: string | null
           estado?: string
           views?: number
           last_opened_at?: string | null
@@ -515,6 +539,7 @@ export interface Database {
           creado_por?: string
           titulo?: string
           mensaje?: string | null
+          nombre_cliente?: string | null
           estado?: string
           views?: number
           last_opened_at?: string | null
@@ -656,6 +681,136 @@ export interface Database {
           created_at?: string
         }
       }
+      lead_etapa_historial: {
+        Row: {
+          id: string
+          lead_id: string
+          etapa_anterior: string | null
+          etapa_nueva: string
+          changed_at: string
+          changed_by: string | null
+        }
+        Insert: {
+          id?: string
+          lead_id: string
+          etapa_anterior?: string | null
+          etapa_nueva: string
+          changed_at?: string
+          changed_by?: string | null
+        }
+        Update: {
+          id?: string
+          lead_id?: string
+          etapa_anterior?: string | null
+          etapa_nueva?: string
+          changed_at?: string
+          changed_by?: string | null
+        }
+      }
+      lead_analisis_ia: {
+        Row: {
+          id: string
+          lead_id: string
+          generado_por: string | null
+          temperatura: string
+          probabilidad_cierre_pct: number
+          riesgos: Json
+          mejor_proxima_accion: string | null
+          guion_sugerido: string | null
+          modelo: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          lead_id: string
+          generado_por?: string | null
+          temperatura?: string
+          probabilidad_cierre_pct?: number
+          riesgos?: Json
+          mejor_proxima_accion?: string | null
+          guion_sugerido?: string | null
+          modelo?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          lead_id?: string
+          generado_por?: string | null
+          temperatura?: string
+          probabilidad_cierre_pct?: number
+          riesgos?: Json
+          mejor_proxima_accion?: string | null
+          guion_sugerido?: string | null
+          modelo?: string | null
+          created_at?: string
+        }
+      }
+      plantillas_propuesta: {
+        Row: {
+          id: string
+          nombre: string
+          contenido: string
+          activa: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          nombre: string
+          contenido: string
+          activa?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          nombre?: string
+          contenido?: string
+          activa?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      telegram_updates: {
+        Row: {
+          update_id: number
+          created_at: string
+        }
+        Insert: {
+          update_id: number
+          created_at?: string
+        }
+        Update: {
+          update_id?: number
+          created_at?: string
+        }
+      }
+      telegram_pendientes: {
+        Row: {
+          id: string
+          chat_id: string
+          profile_id: string | null
+          payload: Json
+          resolved: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          chat_id: string
+          profile_id?: string | null
+          payload: Json
+          resolved?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          chat_id?: string
+          profile_id?: string | null
+          payload?: Json
+          resolved?: boolean
+          created_at?: string
+        }
+      }
       historial_porcentaje_hogar: {
         Row: {
           id: string
@@ -689,5 +844,19 @@ export interface Database {
         }
       }
     }
+  }
+}
+
+export type Database = {
+  public: {
+    Tables: {
+      [K in keyof DatabaseDef['public']['Tables']]: DatabaseDef['public']['Tables'][K] & {
+        Relationships: []
+      }
+    }
+    Views: { [_ in never]: never }
+    Functions: { [_ in never]: never }
+    Enums: { [_ in never]: never }
+    CompositeTypes: { [_ in never]: never }
   }
 }

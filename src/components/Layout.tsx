@@ -2,7 +2,7 @@ import { ReactNode, useState } from 'react';
 import {
   LayoutDashboard, Users, LogOut, HeartHandshake,
   Menu, X, Building2, ShieldCheck, Briefcase,
-  Kanban, Bell, UserCog, TrendingUp,
+  Kanban, Bell, UserCog, TrendingUp, BrainCircuit, FileText,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -17,13 +17,15 @@ export function Layout({ children, currentView, onViewChange }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const menuItems = [
-    { id: 'dashboard',  label: 'Dashboard',   icon: LayoutDashboard, desc: 'Resumen general' },
-    { id: 'leads',      label: 'Leads',        icon: Users,           desc: 'Clientes activos' },
-    { id: 'kanban',     label: 'Pipeline',     icon: Kanban,          desc: 'Vista kanban' },
-    { id: 'comisiones', label: 'Comisiones',   icon: TrendingUp,      desc: 'Cobros y adelantos' },
+    { id: 'dashboard',    label: 'Dashboard',    icon: LayoutDashboard, desc: 'Resumen general' },
+    { id: 'leads',        label: 'Leads',        icon: Users,           desc: 'Clientes activos' },
+    { id: 'kanban',       label: 'Pipeline',     icon: Kanban,          desc: 'Vista kanban' },
+    { id: 'inteligencia', label: 'Inteligencia', icon: BrainCircuit,    desc: 'Centro comercial' },
+    { id: 'comisiones',   label: 'Comisiones',   icon: TrendingUp,      desc: 'Cobros y adelantos' },
     ...(isAdmin ? [
-      { id: 'hogares',  label: 'Hogares',  icon: Building2, desc: 'Catálogo' },
-      { id: 'usuarios', label: 'Usuarios', icon: UserCog,   desc: 'Equipo' },
+      { id: 'hogares',    label: 'Hogares',    icon: Building2, desc: 'Catálogo' },
+      { id: 'plantillas', label: 'Plantillas', icon: FileText,  desc: 'Mensajes de propuesta' },
+      { id: 'usuarios',   label: 'Usuarios',   icon: UserCog,   desc: 'Equipo' },
     ] : []),
   ];
 

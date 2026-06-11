@@ -5,7 +5,7 @@ import type { Database } from '../../lib/database.types';
 import { useAuth } from '../../contexts/AuthContext';
 import { PIPELINE_STAGES, getStageLabel, getStageStrongColor } from '../../lib/pipeline';
 import { createStageTask } from '../../lib/stageTaskAutomation';
-import { notificarAdminsYEjecutivo, notificarAdmins } from '../../lib/telegram';
+import { notificarAdminsYEjecutivo, notificarAdmins, notificarEjecutivo } from '../../lib/telegram';
 import { crearComisionSiNoExiste } from '../../lib/comisiones';
 
 interface GestionPanelProps {
@@ -37,6 +37,17 @@ const noRequiereProximoContacto = ['no_contesta', 'cierre_ganado', 'cierre_perdi
 
 // Etapas en las que SÍ se avisa a los admins por Telegram (eventos clave del pipeline).
 const ETAPAS_NOTIFICAR_ADMIN = ['visitas_programadas', 'cierre_ganado', 'cierre_perdido'];
+
+// Motivos de cierre perdido (obligatorio al pasar a cierre_perdido).
+// Alimenta la gráfica de "Motivos de pérdida" del Centro de Inteligencia.
+export const MOTIVOS_PERDIDA = [
+  { value: 'precio', label: 'Precio' },
+  { value: 'eligio_otro_hogar', label: 'Eligió otro hogar' },
+  { value: 'familia_desistio', label: 'Familia desistió' },
+  { value: 'fallecido', label: 'Fallecido' },
+  { value: 'no_contesta', label: 'No contesta' },
+  { value: 'otro', label: 'Otro' },
+];
 
 const ACCION_OPTIONS = [
   'Llamar para confirmar visita',
@@ -81,6 +92,10 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
 
   const [razonEscalacion, setRazonEscalacion] = useState('');
   const [errorEscalacion, setErrorEscalacion] = useState('');
+
+  // Motivo de pérdida — obligatorio al pasar a cierre_perdido.
+  const [motivoPerdida, setMotivoPerdida] = useState('');
+  const [errorMotivoPerdida, setErrorMotivoPerdida] = useState('');
 
   // No-contesta panel: contador + últimos intentos
   const [intentos, setIntentos] = useState<IntentoRow[]>([]);
@@ -231,9 +246,15 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
     }
     setErrorEscalacion('');
 
+    if (etapaCambiada && form.nuevaEtapa === 'cierre_perdido' && !motivoPerdida) {
+      setErrorMotivoPerdida('Selecciona el motivo de la pérdida — es obligatorio para cerrar como perdido.');
+      return;
+    }
+    setErrorMotivoPerdida('');
+
     setSaving(true);
     try {
-      const ops: Promise<unknown>[] = [];
+      const ops: PromiseLike<unknown>[] = [];
 
       const nowIso = new Date().toISOString();
 
@@ -312,6 +333,12 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
       if (etapaCambiada) {
         leadPatch.estado = form.nuevaEtapa;
         resetRecordatorios = true;
+        if (form.nuevaEtapa === 'cierre_perdido' && motivoPerdida) {
+          leadPatch.motivo_perdida = motivoPerdida;
+        }
+      }
+      if (form.nota.trim()) {
+        leadPatch.ultima_gestion = nowIso;
       }
       if (form.proximaFecha) {
         const proxIso = new Date(form.proximaFecha).toISOString();
@@ -368,10 +395,22 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
           mensaje =
             `🏆 <b>Cierre GANADO</b>\n👤 ${cliente}\n👩‍💼 Ejecutivo: ${ejecutivoNombre}\n🔗 ${link}`;
         } else {
+          const motivoLabel = MOTIVOS_PERDIDA.find(m => m.value === motivoPerdida)?.label ?? motivoPerdida;
           mensaje =
-            `❌ <b>Cierre perdido</b>\n👤 ${cliente}\n👩‍💼 Ejecutivo: ${ejecutivoNombre}\n🔗 ${link}`;
+            `❌ <b>Cierre perdido</b>\n👤 ${cliente}\n📋 Motivo: ${motivoLabel}\n👩‍💼 Ejecutivo: ${ejecutivoNombre}\n🔗 ${link}`;
         }
         notificarAdmins(mensaje);
+      }
+
+      // Aviso al EJECUTIVO dueño del lead cuando OTRA persona (p. ej. un admin)
+      // le cambia la etapa: así Vanessa se entera de movimientos en sus leads.
+      if (etapaCambiada && leadData?.ejecutivo_id && leadData.ejecutivo_id !== user.id) {
+        const cliente = leadData?.nombre_contacto ?? '—';
+        const quien = profile?.nombre_completo ?? user.email ?? 'alguien del equipo';
+        notificarEjecutivo(
+          leadData.ejecutivo_id,
+          `🔄 <b>Tu lead cambió de etapa</b>\n👤 ${cliente}\n➡️ Nueva etapa: <b>${getStageLabel(form.nuevaEtapa)}</b>\n✍️ Lo movió: ${quien}\n🔗 https://crm.vinculodorado.co/leads/${leadId}`,
+        );
       }
 
       setForm({
@@ -383,6 +422,8 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
       });
       setRazonEscalacion('');
       setErrorEscalacion('');
+      setMotivoPerdida('');
+      setErrorMotivoPerdida('');
       setAccionOtro(false);
       setComisionForm({ valor_primer_mes: '', porcentaje_vinculo: '40', hogar_id: '' });
 
@@ -433,6 +474,28 @@ export function GestionPanel({ leadId, estadoActual, onSaved, leadData }: Gestio
                 </span>
                 <ArrowRight className="w-3 h-3 text-gray-400" />
                 <span className="text-xs text-blue-600 font-semibold">se guardará al registrar</span>
+              </div>
+            )}
+
+            {etapaCambiada && form.nuevaEtapa === 'cierre_perdido' && (
+              <div className="mt-3 p-3 bg-gray-50 border border-gray-300 rounded-lg">
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">
+                  Motivo de la pérdida <span className="text-red-600">*</span>
+                </label>
+                <select
+                  value={motivoPerdida}
+                  onChange={(e) => { setMotivoPerdida(e.target.value); if (errorMotivoPerdida) setErrorMotivoPerdida(''); }}
+                  className="w-full px-3 py-2 border border-gray-300 bg-white rounded-lg text-sm focus:ring-2 focus:ring-gray-400 focus:border-transparent"
+                >
+                  <option value="">Seleccionar motivo…</option>
+                  {MOTIVOS_PERDIDA.map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">Obligatorio. Alimenta el análisis de motivos de pérdida en Inteligencia.</p>
+                {errorMotivoPerdida && (
+                  <p className="text-xs text-red-600 font-semibold mt-1">{errorMotivoPerdida}</p>
+                )}
               </div>
             )}
 

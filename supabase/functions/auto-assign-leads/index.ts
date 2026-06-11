@@ -16,14 +16,7 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const CRON_SECRET = Deno.env.get("CRON_SECRET") ?? "";
 const ENV_MINUTES = Number(Deno.env.get("AUTOASSIGN_THRESHOLD_MINUTES") ?? "");
 
-// Ejecutivo destino (Vanessa por ahora).
-const EJECUTIVO = {
-  id: "5631a018-cf0a-4d34-91a8-f1ff2cc5e7aa",
-  nombre: "Vanessa",
-};
-
-// Admins que reciben el aviso de auto-asignación: Nico, Jhonatan.
-const ADMIN_CHAT_IDS: number[] = [2094733004, 1145747754];
+const ETAPAS_TERMINALES = ["cierre_ganado", "cierre_perdido", "fallecido"];
 
 const DEFAULT_MINUTES = 120; // 2 horas
 
@@ -57,6 +50,58 @@ async function tgSend(chatId: number | string, text: string): Promise<void> {
 // "120" -> "2h"; "3" -> "3 min".
 function etiquetaUmbral(min: number): string {
   return min % 60 === 0 ? `${min / 60}h` : `${min} min`;
+}
+
+// Chat IDs de los administradores activos (leídos de profiles, cero hardcode).
+async function getAdminChatIds(): Promise<(number | string)[]> {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?rol=eq.administrador&activo=eq.true&telegram_chat_id=not.is.null&select=telegram_chat_id`,
+      { headers: restHeaders() },
+    );
+    const rows = await res.json().catch(() => []);
+    if (Array.isArray(rows)) return rows.map((r: any) => r.telegram_chat_id).filter(Boolean);
+  } catch (err) {
+    console.error("No se pudieron leer los admins:", err);
+  }
+  return [];
+}
+
+// Ejecutivo comercial destino: el activo con MENOS leads activos asignados
+// (con un solo ejecutivo, siempre es ese; con varios, balancea la carga).
+async function getEjecutivoDestino(): Promise<{ id: string; nombre: string; chatId: number | string | null } | null> {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?rol=eq.ejecutivo_comercial&activo=eq.true&select=id,nombre_completo,telegram_chat_id&order=created_at.asc`,
+      { headers: restHeaders() },
+    );
+    const ejecutivos = await res.json().catch(() => []);
+    if (!Array.isArray(ejecutivos) || ejecutivos.length === 0) return null;
+
+    let elegido = ejecutivos[0];
+    if (ejecutivos.length > 1) {
+      const cargaRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/leads?ejecutivo_id=not.is.null&estado=not.in.(${ETAPAS_TERMINALES.join(",")})&select=ejecutivo_id`,
+        { headers: restHeaders() },
+      );
+      const cargaRows = await cargaRes.json().catch(() => []);
+      const carga = new Map<string, number>();
+      if (Array.isArray(cargaRows)) {
+        for (const r of cargaRows) carga.set(r.ejecutivo_id, (carga.get(r.ejecutivo_id) ?? 0) + 1);
+      }
+      elegido = [...ejecutivos].sort(
+        (a, b) => (carga.get(a.id) ?? 0) - (carga.get(b.id) ?? 0),
+      )[0];
+    }
+    return {
+      id: elegido.id,
+      nombre: (elegido.nombre_completo || "el ejecutivo").split(" ")[0],
+      chatId: elegido.telegram_chat_id ?? null,
+    };
+  } catch (err) {
+    console.error("No se pudo elegir ejecutivo destino:", err);
+    return null;
+  }
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -101,18 +146,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // chat_id de Vanessa (una sola vez).
-    let ejeChatId: number | string | null = null;
-    try {
-      const pRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${EJECUTIVO.id}&select=telegram_chat_id`,
-        { headers: restHeaders() },
+    // Ejecutivo destino y admins, leídos de profiles (una sola vez por corrida).
+    const EJECUTIVO = await getEjecutivoDestino();
+    if (!EJECUTIVO) {
+      console.error("No hay ejecutivos comerciales activos: no se auto-asigna.");
+      return new Response(
+        JSON.stringify({ ok: true, assigned: 0, reason: "sin-ejecutivos-activos" }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
       );
-      const pRows = await pRes.json().catch(() => []);
-      ejeChatId = Array.isArray(pRows) && pRows[0] ? pRows[0].telegram_chat_id : null;
-    } catch (err) {
-      console.error("No se pudo leer telegram_chat_id del ejecutivo:", err);
     }
+    const ADMIN_CHAT_IDS = await getAdminChatIds();
+    const ejeChatId = EJECUTIVO.chatId;
 
     const asignados: string[] = [];
 
