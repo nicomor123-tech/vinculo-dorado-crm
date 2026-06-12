@@ -631,23 +631,8 @@ async function cmdHoy(chatId: number | string, perfil: Perfil): Promise<void> {
   await tgSend(chatId, msg);
 }
 
-async function cmdLead(chatId: number | string, perfil: Perfil, query: string): Promise<void> {
-  if (!query.trim()) {
-    await tgSend(chatId, `Dime el nombre, por ejemplo: <code>/lead María Rodríguez</code>`);
-    return;
-  }
-  const leads = await cargarLeadsActivos(perfil);
-  const matches = buscarLeads(leads, query);
-  if (matches.length === 0) {
-    await tgSend(chatId, `🔎 No encontré ningún cliente activo parecido a "<i>${escapeHtml(query)}</i>"${esAdmin(perfil) ? "" : " entre tus leads"}. ¿Me das el nombre más completo?`);
-    return;
-  }
-  if (matches.length > 1) {
-    const lista = matches.map((m) => `• <b>${escapeHtml(m.nombre_adulto_mayor)}</b> (${escapeHtml(m.nombre_contacto)}) — ${ETAPA_LABELS[m.estado] ?? m.estado}`).join("\n");
-    await tgSend(chatId, `🔎 Encontré varios parecidos:\n\n${lista}\n\nRepite el comando con el nombre más completo.`);
-    return;
-  }
-  const lead = matches[0];
+// Mini ficha de un lead (la usan /lead y el botón "Ver resumen").
+async function fichaLead(lead: LeadLite): Promise<string> {
   const [ultimaGestion] = await sbGet(
     `notas_seguimiento?lead_id=eq.${lead.id}&select=tipo_seguimiento,descripcion,created_at&order=created_at.desc&limit=1`,
   );
@@ -665,12 +650,48 @@ async function cmdLead(chatId: number | string, perfil: Perfil, query: string): 
     msg += `\n📝 Sin gestiones registradas aún.\n`;
   }
   msg += `\n🔗 ${CRM_URL}/leads/${lead.id}`;
-  await tgSend(chatId, msg);
+  return msg;
+}
+
+async function cmdLead(chatId: number | string, perfil: Perfil, query: string): Promise<void> {
+  if (!query.trim()) {
+    await tgSend(chatId, `Dime el nombre, por ejemplo: <code>/lead María Rodríguez</code>`);
+    return;
+  }
+  const leads = await cargarLeadsActivos(perfil);
+  const matches = buscarLeads(leads, query);
+  if (matches.length === 0) {
+    await tgSend(chatId, `🔎 No encontré ningún cliente activo parecido a "<i>${escapeHtml(query)}</i>"${esAdmin(perfil) ? "" : " entre tus leads"}. ¿Me das el nombre más completo?`);
+    return;
+  }
+  if (matches.length > 1) {
+    const lista = matches.map((m) => `• <b>${escapeHtml(m.nombre_adulto_mayor)}</b> (${escapeHtml(m.nombre_contacto)}) — ${ETAPA_LABELS[m.estado] ?? m.estado}`).join("\n");
+    await tgSend(chatId, `🔎 Encontré varios parecidos:\n\n${lista}\n\nRepite el comando con el nombre más completo.`);
+    return;
+  }
+  await tgSend(chatId, await fichaLead(matches[0]));
 }
 
 // ---------------------------------------------------------------------------
 // Handler: mensaje entrante (texto o voz)
 // ---------------------------------------------------------------------------
+
+// ¿El chat está en modo "esperando nota" (tocó "Ya la gestioné" en un
+// recordatorio)? Devuelve el pendiente más reciente y vigente (< 2h).
+async function buscarPendienteNota(chatId: number | string): Promise<{ id: string; lead_id: string } | null> {
+  const rows = await sbGet(
+    `telegram_pendientes?chat_id=eq.${encodeURIComponent(String(chatId))}&resolved=eq.false&order=created_at.desc&limit=5`,
+  );
+  for (const p of rows) {
+    if (
+      p?.payload?.tipo === "esperando_nota" && p?.payload?.lead_id &&
+      Date.now() - Date.parse(p.created_at) < 2 * 3600_000
+    ) {
+      return { id: p.id, lead_id: p.payload.lead_id };
+    }
+  }
+  return null;
+}
 
 async function handleMessage(message: any): Promise<void> {
   const chatId = message?.chat?.id;
@@ -698,11 +719,22 @@ async function handleMessage(message: any): Promise<void> {
       await cmdLead(chatId, perfil, t.replace(/^\/lead(@\w+)?/i, "").trim());
       return;
     }
+    if (t === "/cancelar" || t.startsWith("/cancelar@")) {
+      await sbPatch(
+        `telegram_pendientes?chat_id=eq.${encodeURIComponent(String(chatId))}&resolved=eq.false`,
+        { resolved: true },
+      );
+      await tgSend(chatId, `👌 Listo, cancelé lo que estaba pendiente. Sigamos normal.`);
+      return;
+    }
     if (t.startsWith("/")) {
       await tgSend(chatId, `No conozco ese comando 🤔. Prueba /hoy, /lead &lt;nombre&gt; o /ayuda.`);
       return;
     }
   }
+
+  // ¿Venimos de un "✅ Ya la gestioné"? El próximo mensaje es la nota de ESE lead.
+  const pendienteNota = await buscarPendienteNota(chatId);
 
   // --- Gestión por texto o voz ---
   let parsed: GestionParsed | null = null;
@@ -746,6 +778,20 @@ async function handleMessage(message: any): Promise<void> {
     return;
   }
 
+  // Modo "esperando nota": el lead ya está fijado por el botón del recordatorio,
+  // no hay matching. Se consume el pendiente y se registra directo.
+  if (pendienteNota) {
+    const leadFijado = await getLeadPorId(pendienteNota.lead_id);
+    await sbPatch(`telegram_pendientes?id=eq.${pendienteNota.id}`, { resolved: true });
+    if (leadFijado) {
+      const confirmacion = await ejecutarGestion(leadFijado, parsed, perfil);
+      await tgSend(chatId, confirmacion);
+      return;
+    }
+    // El lead ya no existe: avisar y seguir con el flujo normal por nombre.
+    await tgSend(chatId, `😕 Ese lead ya no existe en el CRM. Intento registrarlo por el nombre que mencionaste…`);
+  }
+
   if (!parsed.lead_referencia) {
     await tgSend(
       chatId,
@@ -778,6 +824,215 @@ async function handleMessage(message: any): Promise<void> {
 
 async function answerCallback(callbackId: string, text: string): Promise<void> {
   await tg("answerCallbackQuery", { callback_query_id: callbackId, text });
+}
+
+async function getLeadPorId(leadId: string): Promise<LeadLite | null> {
+  const [lead] = await sbGet(`leads?id=eq.${leadId}&select=${LEAD_SELECT}`) as LeadLite[];
+  return lead ?? null;
+}
+
+// Edita el mensaje del botón; si no se puede (mensaje viejo/borrado), manda uno nuevo.
+async function editarOMandar(
+  chatId: number | string | null,
+  messageId: number | null,
+  text: string,
+  replyMarkup?: unknown,
+): Promise<void> {
+  if (chatId == null) return;
+  if (messageId != null) {
+    const res = await tg("editMessageText", {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: "HTML",
+      text,
+      reply_markup: replyMarkup ?? { inline_keyboard: [] },
+    });
+    if (res?.ok) return;
+  }
+  await tgSend(chatId, text, replyMarkup);
+}
+
+// Opciones de posposición (hora Colombia, UTC-5 fijo).
+function calcularPosposicion(opcion: string): { fecha: Date; etiqueta: string } | null {
+  const now = Date.now();
+  if (opcion === "1h") {
+    return { fecha: new Date(now + 3600_000), etiqueta: "en 1 hora" };
+  }
+  const bog = new Date(now - 5 * 3600_000);
+  const y = bog.getUTCFullYear(), m = bog.getUTCMonth(), d = bog.getUTCDate();
+  if (opcion === "16") {
+    let t = Date.UTC(y, m, d, 21, 0, 0); // 16:00 Bogotá = 21:00 UTC
+    let etiqueta = "hoy a las 4:00 p. m.";
+    if (t <= now) { t += 86_400_000; etiqueta = "mañana a las 4:00 p. m. (hoy ya pasó esa hora)"; }
+    return { fecha: new Date(t), etiqueta };
+  }
+  if (opcion === "m9") {
+    return { fecha: new Date(Date.UTC(y, m, d + 1, 14, 0, 0)), etiqueta: "mañana a las 9:00 a. m." }; // 9:00 Bogotá = 14:00 UTC
+  }
+  return null;
+}
+
+const TECLADO_POSPONER = (leadId: string) => ({
+  inline_keyboard: [
+    [{ text: "⏰ En 1 hora", callback_data: `rp:1h:${leadId}` }],
+    [
+      { text: "🕓 Hoy 4:00 pm", callback_data: `rp:16:${leadId}` },
+      { text: "🌅 Mañana 9:00 am", callback_data: `rp:m9:${leadId}` },
+    ],
+  ],
+});
+
+// "rg:<g|p|r>:<leadId>" — botones del recordatorio de gestión vencida.
+async function handleRecordatorioCallback(cb: any, accion: string, leadId: string, perfil: Perfil): Promise<void> {
+  const callbackId: string = cb.id;
+  const chatId = cb.message?.chat?.id ?? null;
+  const messageId = cb.message?.message_id ?? null;
+
+  const lead = await getLeadPorId(leadId);
+  if (!lead) {
+    await answerCallback(callbackId, "El lead ya no existe");
+    return;
+  }
+  const cliente = lead.nombre_contacto || lead.nombre_adulto_mayor || "el cliente";
+
+  if (accion === "r") {
+    // Ver resumen: ficha aparte, el recordatorio queda intacto con sus botones.
+    await answerCallback(callbackId, "Te mando el resumen 👇");
+    if (chatId != null) await tgSend(chatId, await fichaLead(lead));
+    return;
+  }
+
+  if (accion === "p") {
+    await answerCallback(callbackId, "¿Para cuándo?");
+    await editarOMandar(
+      chatId, messageId,
+      `⏰ ¿Para cuándo pospongo <b>${escapeHtml(lead.proxima_accion || "el seguimiento")}</b> con <b>${escapeHtml(cliente)}</b>?`,
+      TECLADO_POSPONER(leadId),
+    );
+    return;
+  }
+
+  if (accion === "g") {
+    if (chatId == null) {
+      await answerCallback(callbackId, "No pude abrir el chat");
+      return;
+    }
+    // "Ya la gestioné": dejamos al chat en modo "esperando nota" para este lead;
+    // el próximo texto/audio se registra directo contra él (sin matching).
+    await sbInsert("telegram_pendientes", {
+      chat_id: String(chatId),
+      profile_id: perfil.id,
+      payload: { tipo: "esperando_nota", lead_id: leadId },
+    }, "return=minimal");
+    await answerCallback(callbackId, "Cuéntame 👂");
+    await editarOMandar(
+      chatId, messageId,
+      `✍️ Perfecto ${primerNombre(perfil)}, cuéntame qué pasó con <b>${escapeHtml(cliente)}</b> — texto o nota de voz 🎙️ — y lo registro como gestión.\n\n<i>Si te equivocaste de botón, escribe /cancelar.</i>`,
+    );
+    return;
+  }
+
+  await answerCallback(callbackId, "Acción no reconocida");
+}
+
+// "rp:<1h|16|m9>:<leadId>" — ejecutar la posposición / reagenda.
+async function handlePosponerCallback(cb: any, opcion: string, leadId: string, perfil: Perfil): Promise<void> {
+  const callbackId: string = cb.id;
+  const chatId = cb.message?.chat?.id ?? null;
+  const messageId = cb.message?.message_id ?? null;
+
+  const calc = calcularPosposicion(opcion);
+  if (!calc) {
+    await answerCallback(callbackId, "Opción no válida");
+    return;
+  }
+  const lead = await getLeadPorId(leadId);
+  if (!lead) {
+    await answerCallback(callbackId, "El lead ya no existe");
+    return;
+  }
+  const cliente = lead.nombre_contacto || lead.nombre_adulto_mayor || "el cliente";
+  const nuevaIso = calc.fecha.toISOString();
+  const nowIso = new Date().toISOString();
+
+  await sbPatch(`leads?id=eq.${leadId}`, {
+    proxima_contactabilidad: nuevaIso,
+    recordatorio_ref: nuevaIso,
+    recordatorios_enviados: 0,
+    ultimo_recordatorio: null,
+    escalado_supervision: false,
+    updated_at: nowIso,
+  });
+
+  await sbInsert("activity_log", {
+    lead_id: leadId,
+    user_id: perfil.id,
+    tipo: "recordatorio_pospuesto",
+    descripcion: `Seguimiento pospuesto desde Telegram para ${fmtFechaCO(nuevaIso)}`,
+    metadata: { origen: "telegram", opcion, nueva_fecha: nuevaIso },
+  }, "return=minimal");
+
+  await answerCallback(callbackId, "Pospuesto ⏰");
+  await editarOMandar(
+    chatId, messageId,
+    `⏰ Listo, pospuse <b>${escapeHtml(lead.proxima_accion || "el seguimiento")}</b> con <b>${escapeHtml(cliente)}</b> para <b>${calc.etiqueta}</b> (${fmtFechaCO(nuevaIso)}). Yo te aviso.`,
+  );
+}
+
+// "ct:<c|r>:<leadId>" — botones del aviso de cita (~1h antes).
+async function handleCitaCallback(cb: any, accion: string, leadId: string, perfil: Perfil): Promise<void> {
+  const callbackId: string = cb.id;
+  const chatId = cb.message?.chat?.id ?? null;
+  const messageId = cb.message?.message_id ?? null;
+
+  const lead = await getLeadPorId(leadId);
+  if (!lead) {
+    await answerCallback(callbackId, "El lead ya no existe");
+    return;
+  }
+  const cliente = lead.nombre_contacto || lead.nombre_adulto_mayor || "el cliente";
+
+  if (accion === "c") {
+    await sbInsert("activity_log", {
+      lead_id: leadId,
+      user_id: perfil.id,
+      tipo: "cita_confirmada",
+      descripcion: "Cita confirmada desde Telegram",
+      metadata: { origen: "telegram", proxima_contactabilidad: lead.proxima_contactabilidad },
+    }, "return=minimal");
+
+    // Quitar SOLO la fila de botones de esta cita (el aviso puede traer varias).
+    const filas: any[] = cb.message?.reply_markup?.inline_keyboard ?? [];
+    const filtradas = filas.filter((fila: any[]) =>
+      !fila.some((b: any) => typeof b?.callback_data === "string" && b.callback_data.endsWith(`:${leadId}`))
+    );
+    if (chatId != null && messageId != null) {
+      await tg("editMessageReplyMarkup", {
+        chat_id: chatId,
+        message_id: messageId,
+        reply_markup: { inline_keyboard: filtradas },
+      });
+    }
+    await answerCallback(callbackId, `✅ Cita con ${cliente} confirmada`);
+    if (chatId != null) {
+      await tgSend(chatId, `✅ Cita con <b>${escapeHtml(cliente)}</b> confirmada. ¡Éxitos ${primerNombre(perfil)}! 💪`);
+    }
+    return;
+  }
+
+  if (accion === "r") {
+    await answerCallback(callbackId, "¿Para cuándo?");
+    if (chatId != null) {
+      await tgSend(
+        chatId,
+        `🔄 ¿Para cuándo reagendo <b>${escapeHtml(lead.proxima_accion || "la cita")}</b> con <b>${escapeHtml(cliente)}</b>?`,
+        TECLADO_POSPONER(leadId),
+      );
+    }
+    return;
+  }
+
+  await answerCallback(callbackId, "Acción no reconocida");
 }
 
 // "asg:<leadId>:<alias>" — asignación de lead (botones del aviso de lead nuevo).
@@ -926,6 +1181,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
         await handleCallbackAsignacion(cb, parts[1], parts[2]);
       } else if (parts.length === 3 && parts[0] === "tgp") {
         await handleCallbackPendiente(cb, parts[1], parts[2]);
+      } else if (parts.length === 3 && ["rg", "rp", "ct"].includes(parts[0])) {
+        // Botones de recordatorios/citas: solo chats del equipo.
+        const perfil = await getPerfilPorChatId(cb.message?.chat?.id ?? "");
+        if (!perfil) {
+          await answerCallback(cb.id, "No autorizado");
+        } else if (parts[0] === "rg") {
+          await handleRecordatorioCallback(cb, parts[1], parts[2], perfil);
+        } else if (parts[0] === "rp") {
+          await handlePosponerCallback(cb, parts[1], parts[2], perfil);
+        } else {
+          await handleCitaCallback(cb, parts[1], parts[2], perfil);
+        }
       } else {
         await answerCallback(cb.id, "Acción no reconocida");
       }

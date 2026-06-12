@@ -43,12 +43,17 @@ function restHeaders(extra: Record<string, string> = {}): Record<string, string>
   };
 }
 
-async function tgSend(chatId: number | string, text: string): Promise<void> {
+async function tgSend(chatId: number | string, text: string, replyMarkup?: unknown): Promise<void> {
   try {
     const res = await fetch(`${TG_API}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: "HTML",
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+      }),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -237,11 +242,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const newCount = count + 1; // 1..5
 
       // Recordatorio al ejecutivo (si tiene chat_id; si no, igual cuenta).
+      // Botones accionables: los procesa la Edge Function telegram-webhook
+      // (rg:g = registrar gestión, rg:p = posponer, rg:r = ver resumen).
       if (prof.chatId) {
         await tgSend(
           prof.chatId,
           `📋 <b>Recordatorio ${newCount}/${MAX_RECORDATORIOS}</b>: ${accion} con <b>${cliente}</b> ` +
             `(vencía ${vencia}).\n🔗 ${link}`,
+          {
+            inline_keyboard: [
+              [
+                { text: "✅ Ya la gestioné", callback_data: `rg:g:${lead.id}` },
+                { text: "⏰ Posponer", callback_data: `rg:p:${lead.id}` },
+              ],
+              [{ text: "👁 Ver resumen", callback_data: `rg:r:${lead.id}` }],
+            ],
+          },
         );
       }
       recordados++;
@@ -311,7 +327,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
             const titulo = items.length === 1
               ? `⏰ <b>Tienes un contacto en menos de 1 hora</b>`
               : `⏰ <b>Tienes ${items.length} contactos en la próxima hora</b>`;
-            await tgSend(prof.chatId, `${titulo}\n\n${lineas}`);
+            // Botones por cita (ct:c = confirmada, ct:r = reagendar); con varias
+            // citas cada fila lleva el nombre para distinguirlas.
+            const teclado = items.map((c: any) => {
+              const corto = ((c.nombre_contacto || c.nombre_adulto_mayor || "cliente").split(" ")[0]).slice(0, 14);
+              return items.length === 1
+                ? [
+                  { text: "✅ Confirmada", callback_data: `ct:c:${c.id}` },
+                  { text: "🔄 Reagendar", callback_data: `ct:r:${c.id}` },
+                ]
+                : [
+                  { text: `✅ ${corto}`, callback_data: `ct:c:${c.id}` },
+                  { text: `🔄 ${corto}`, callback_data: `ct:r:${c.id}` },
+                ];
+            });
+            await tgSend(prof.chatId, `${titulo}\n\n${lineas}`, { inline_keyboard: teclado });
           }
           // Marcar avisadas aunque no tenga chat (no insistir cada 15 min).
           for (const c of items) {
