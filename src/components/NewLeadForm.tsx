@@ -4,7 +4,6 @@ import {
   MapPin, Phone, User, Heart, Home, Calendar, Banknote, Search, Check,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { notificarNuevoLead } from '../lib/telegram';
 import { useAuth } from '../contexts/AuthContext';
 import { HogaresRecomendados } from './HogaresRecomendados';
 
@@ -324,7 +323,7 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
       // leads de Vanessa salían ya asignados a ella).
       const ejecutivoId: string | null = null;
 
-      const { data: insertedRows, error: insertError } = await supabase.from('leads').insert([{
+      const { error: insertError } = await supabase.from('leads').insert([{
         nombre_adulto_mayor: formData.nombre_adulto_mayor || null,
         edad: formData.edad ? parseInt(formData.edad) : null,
         sexo: formData.sexo || null,
@@ -368,23 +367,10 @@ export function NewLeadForm({ onClose, onSuccess, onViewHogar }: NewLeadFormProp
         return;
       }
 
-      const nuevoLeadId = insertedRows?.[0]?.id;
-      if (nuevoLeadId) {
-        const presupuestoValor = getPresupuestoValor();
-        const presupuestoTxt = presupuestoValor != null
-          ? new Intl.NumberFormat('es-CO').format(presupuestoValor) + ' COP'
-          : (formData.presupuesto_rango || 'no especificado');
-        const mensaje =
-          `🆕 <b>Lead nuevo creado</b>\n\n` +
-          `👤 ${formData.nombre_contacto}\n` +
-          `📞 ${formData.telefono_principal}\n` +
-          `📍 ${getCiudad() || '—'}\n` +
-          `💰 Presupuesto: ${presupuestoTxt}\n` +
-          `⏱️ Urgencia: ${formData.urgencia}\n` +
-          `👩‍💼 Creado por: ${profile?.nombre_completo ?? user.email ?? '—'}\n\n` +
-          `🔗 Ver lead: https://crm.vinculodorado.co/leads/${nuevoLeadId}`;
-        notificarNuevoLead(nuevoLeadId, ejecutivoId, mensaje);
-      }
+      // La notificación enriquecida a los admins (con botones de asignación y
+      // exclusión mutua) la envía la Edge Function lead-eventos, disparada por
+      // un trigger AFTER INSERT en la base de datos: cubre leads creados aquí,
+      // desde el formulario web y desde cualquier otro origen, sin duplicados.
 
       setSavedSummary(buildSummary(formData));
     } catch (err: unknown) {

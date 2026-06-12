@@ -49,12 +49,21 @@ function UrgBadge({ urgencia }: { urgencia: string | null }) {
   );
 }
 
+function mesDeCreacion(iso: string): string {
+  const d = new Date(new Date(iso).toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export function KanbanView({ onViewDetail }: KanbanViewProps) {
   const { isEjecutivo, profile } = useAuth();
-  const [leads, setLeads] = useState<Lead[]>([]);
+  const [allLeads, setAllLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+  const [filterMes, setFilterMes] = useState('todos'); // mes de creación del lead
+
+  const leads = filterMes === 'todos' ? allLeads : allLeads.filter(l => mesDeCreacion(l.created_at) === filterMes);
+  const setLeads = setAllLeads;
 
   useEffect(() => { loadLeads(); }, []);
 
@@ -126,9 +135,24 @@ export function KanbanView({ onViewDetail }: KanbanViewProps) {
             <span className="sm:hidden">Desliza para ver etapas · toca para ver detalles</span>
           </p>
         </div>
-        <div className="hidden md:flex items-center gap-2 text-xs text-sage-400 bg-white border border-cream-200 rounded-xl px-3 py-2 shadow-card">
-          <span>💡</span>
-          <span>Arrastra y suelta para cambiar etapa</span>
+        <div className="flex items-center gap-2">
+          <select
+            value={filterMes}
+            onChange={e => setFilterMes(e.target.value)}
+            className="px-3 py-2 rounded-xl border border-cream-300 text-sm text-sage-800 focus:outline-none focus:ring-2 focus:ring-sage-400 bg-white shadow-card"
+            title="Mes en que entró el lead"
+          >
+            <option value="todos">Todos los meses</option>
+            {[...new Set(allLeads.map(l => mesDeCreacion(l.created_at)))].sort().reverse().map(m => (
+              <option key={m} value={m} className="capitalize">
+                {new Date(m + '-15T12:00:00').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })}
+              </option>
+            ))}
+          </select>
+          <div className="hidden md:flex items-center gap-2 text-xs text-sage-400 bg-white border border-cream-200 rounded-xl px-3 py-2 shadow-card">
+            <span>💡</span>
+            <span>Arrastra y suelta para cambiar etapa</span>
+          </div>
         </div>
       </div>
 

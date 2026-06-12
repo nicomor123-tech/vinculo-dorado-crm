@@ -19,6 +19,9 @@
 //  - Idempotencia por update_id (tabla telegram_updates): Telegram reintenta
 //    el webhook si tardamos; sin esto se duplicarían gestiones.
 
+import { topHogares, formatearTopHogares } from "../_shared/matching.ts";
+import type { HogarRow } from "../_shared/matching.ts";
+
 const TELEGRAM_TOKEN = Deno.env.get("TELEGRAM_TOKEN") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -572,6 +575,7 @@ async function cmdAyuda(chatId: number | string, perfil: Perfil): Promise<void> 
       `<b>Comandos:</b>\n` +
       `/hoy — tus citas y gestiones de hoy\n` +
       `/lead &lt;nombre&gt; — resumen rápido de un cliente\n` +
+      `/hogares &lt;nombre&gt; — TOP 3 de hogares que encajan con ese cliente\n` +
       `/ayuda — esta ayuda`,
   );
 }
@@ -672,6 +676,40 @@ async function cmdLead(chatId: number | string, perfil: Perfil, query: string): 
   await tgSend(chatId, await fichaLead(matches[0]));
 }
 
+// /hogares <nombre> — TOP 3 de hogares que encajan con un lead (A3).
+const HOGAR_SELECT_MATCH = "id,nombre,localidad,barrio,ciudad,precio_desde,precio_hasta,habitaciones_disponibles,maneja_oxigeno,serv_enfermeria_24h,dieta_diabetica,dieta_blanda,un_solo_nivel,tiene_ascensor,hab_compartida,hab_privada_bano_privado,hab_privada_bano_compartido,telefono,whatsapp,estado,updated_at";
+
+async function cmdHogares(chatId: number | string, perfil: Perfil, query: string): Promise<void> {
+  if (!query.trim()) {
+    await tgSend(chatId, `Dime el cliente, por ejemplo: <code>/hogares María Rodríguez</code>`);
+    return;
+  }
+  const leads = await cargarLeadsActivos(perfil);
+  const matches = buscarLeads(leads, query);
+  if (matches.length === 0) {
+    await tgSend(chatId, `🔎 No encontré ningún cliente activo parecido a "<i>${escapeHtml(query)}</i>"${esAdmin(perfil) ? "" : " entre tus leads"}.`);
+    return;
+  }
+  if (matches.length > 1) {
+    const lista = matches.map((m) => `• <b>${escapeHtml(m.nombre_adulto_mayor)}</b> (${escapeHtml(m.nombre_contacto)})`).join("\n");
+    await tgSend(chatId, `🔎 Encontré varios parecidos:\n\n${lista}\n\nRepite con el nombre más completo.`);
+    return;
+  }
+  // Lead completo (el matching necesita presupuesto/zona/necesidades).
+  const [leadFull] = await sbGet(`leads?id=eq.${matches[0].id}&select=*`);
+  if (!leadFull) {
+    await tgSend(chatId, `😕 No pude cargar el lead completo. Inténtalo de nuevo.`);
+    return;
+  }
+  const hogares = await sbGet(`hogares?estado=neq.rechazado&select=${HOGAR_SELECT_MATCH}&limit=600`) as HogarRow[];
+  const top = topHogares(hogares, leadFull, 3);
+  const cliente = leadFull.nombre_contacto || leadFull.nombre_adulto_mayor;
+  await tgSend(
+    chatId,
+    `👤 <b>${escapeHtml(cliente)}</b>\n\n${formatearTopHogares(top, escapeHtml)}\n\n📨 Crea la propuesta aquí:\n${CRM_URL}/leads/${leadFull.id}`,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Handler: mensaje entrante (texto o voz)
 // ---------------------------------------------------------------------------
@@ -713,6 +751,10 @@ async function handleMessage(message: any): Promise<void> {
     }
     if (t === "/hoy" || t.startsWith("/hoy@")) {
       await cmdHoy(chatId, perfil);
+      return;
+    }
+    if (t.startsWith("/hogares")) {
+      await cmdHogares(chatId, perfil, t.replace(/^\/hogares(@\w+)?/i, "").trim());
       return;
     }
     if (t.startsWith("/lead")) {
@@ -1035,11 +1077,38 @@ async function handleCitaCallback(cb: any, accion: string, leadId: string, perfi
   await answerCallback(callbackId, "Acción no reconocida");
 }
 
+// Hora corta Colombia para el "· {hora}" de los mensajes editados.
+function horaCortaCO(): string {
+  return new Date().toLocaleString("es-CO", {
+    timeZone: "America/Bogota", day: "2-digit", month: "short", hour: "numeric", minute: "2-digit", hour12: true,
+  });
+}
+
+// Edita TODOS los mensajes de "lead nuevo" guardados para este lead
+// (los dos admins) y los marca como editados. Exclusión mutua visible.
+async function editarMensajesAsignacion(leadId: string, textoFinal: string): Promise<void> {
+  const mensajes = await sbGet(
+    `telegram_mensajes_lead?lead_id=eq.${leadId}&select=id,chat_id,message_id`,
+  );
+  for (const m of mensajes) {
+    const res = await tg("editMessageText", {
+      chat_id: m.chat_id,
+      message_id: m.message_id,
+      parse_mode: "HTML",
+      text: textoFinal,
+      reply_markup: { inline_keyboard: [] },
+    });
+    if (res?.ok) {
+      await sbPatch(`telegram_mensajes_lead?id=eq.${m.id}`, { editado: true });
+    }
+  }
+}
+
 // "asg:<leadId>:<alias>" — asignación de lead (botones del aviso de lead nuevo).
+// EXCLUSIÓN MUTUA: el primer callback gana; el segundo recibe "Ya lo tomó X".
 async function handleCallbackAsignacion(cb: any, leadId: string, alias: string): Promise<void> {
   const callbackId: string = cb.id;
   const chatId = cb.message?.chat?.id;
-  const messageId = cb.message?.message_id;
 
   const destino = await getPerfilPorAlias(alias);
   if (!destino) {
@@ -1047,36 +1116,49 @@ async function handleCallbackAsignacion(cb: any, leadId: string, alias: string):
     return;
   }
 
-  // (Re)asignación: cada toque manda; los admins pueden reasignar cuantas veces quieran.
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/leads?id=eq.${leadId}`, {
-    method: "PATCH",
-    headers: restHeaders({ Prefer: "return=representation" }),
-    body: JSON.stringify({ ejecutivo_id: destino.id, fecha_asignacion: new Date().toISOString() }),
-  });
+  // Quién tocó el botón (para el "por {quien}" del mensaje final).
+  const quien = await getPerfilPorChatId(chatId ?? "");
+  const nombreQuien = quien ? primerNombre(quien) : "un admin";
+
+  // Asignación ATÓMICA: solo si el lead sigue sin ejecutivo (primer toque gana).
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/leads?id=eq.${leadId}&ejecutivo_id=is.null`,
+    {
+      method: "PATCH",
+      headers: restHeaders({ Prefer: "return=representation" }),
+      body: JSON.stringify({ ejecutivo_id: destino.id, fecha_asignacion: new Date().toISOString() }),
+    },
+  );
   const updated = await res.json().catch(() => []);
+
   if (!res.ok || !Array.isArray(updated) || updated.length === 0) {
-    await answerCallback(callbackId, "No se encontró el lead");
+    // Ya estaba asignado: averiguar a quién y responder sin duplicar nada.
+    const [lead] = await sbGet(`leads?id=eq.${leadId}&select=id,ejecutivo_id`);
+    if (!lead) {
+      await answerCallback(callbackId, "No se encontró el lead");
+      return;
+    }
+    const [actual] = lead.ejecutivo_id
+      ? await sbGet(`profiles?id=eq.${lead.ejecutivo_id}&select=nombre_completo`)
+      : [null];
+    const nombreActual = actual?.nombre_completo ?? "otro ejecutivo";
+    await answerCallback(callbackId, `Ya lo tomó ${nombreActual}`);
+    // Por si este mensaje quedó con botones (carrera), editarlo también.
+    await editarMensajesAsignacion(
+      leadId,
+      `✅ Asignado a <b>${escapeHtml(nombreActual)}</b> · ${horaCortaCO()}\n🔗 ${CRM_URL}/leads/${leadId}`,
+    );
     return;
   }
 
-  // Avisar al asignado por Telegram (si tiene chat y no es quien tocó el botón).
-  if (destino.telegram_chat_id && String(destino.telegram_chat_id) !== String(chatId)) {
-    await tgSend(
-      destino.telegram_chat_id,
-      `📌 <b>Nuevo lead asignado a ti</b>\n\n🔗 ${CRM_URL}/leads/${leadId}`,
-    );
-  }
-
-  if (chatId != null && messageId != null) {
-    await tg("editMessageText", {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: "HTML",
-      text: `✅ Asignado a <b>${escapeHtml(destino.nombre_completo)}</b>`,
-      reply_markup: { inline_keyboard: [] },
-    });
-  }
+  // Ganó este toque: editar AMBOS mensajes con el detalle de quién asignó.
+  await editarMensajesAsignacion(
+    leadId,
+    `✅ Asignado a <b>${escapeHtml(destino.nombre_completo)}</b> por ${escapeHtml(nombreQuien)} · ${horaCortaCO()}\n🔗 ${CRM_URL}/leads/${leadId}`,
+  );
   await answerCallback(callbackId, `✅ Asignado a ${destino.nombre_completo}`);
+  // La ficha + TOP 3 de hogares al ejecutivo la envía lead-eventos
+  // (trigger de BD sobre el cambio de ejecutivo_id) — sin duplicados aquí.
 }
 
 // "tgp:<pendienteId>:<idx>" — el usuario eligió el lead para una gestión pendiente.

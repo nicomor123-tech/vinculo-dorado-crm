@@ -18,12 +18,24 @@ SQL_DASHBOARD_*.sql
 
 # Prompt de misión y documentos operativos con secretos — NUNCA subir
 PROMPT_CODE_VINCULO.md
+MISION_SINCRONIA_WEB.md
 SQL.md
 DEPLOY.md
 RESUMEN.md
 PRUEBAS.md
+SQL2.md
+DEPLOY2.md
+RESUMEN2.md
+PRUEBAS2.md
 REPORTE_NICO.md
 vinculo-dorado-dist.zip
+web-dist.zip
+web-dist/
+fotos-hogares/
+*Fotos Hogares*.zip
+contacto-familias.html
+registro-hogar.html
+propuesta-og.php
 
 # Logs
 *.log

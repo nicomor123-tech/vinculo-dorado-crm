@@ -68,9 +68,10 @@ export function LeadsModule({ onCreateNew, onViewDetail, initialFilter }: LeadsM
   const [filterEstado, setFilterEstado] = useState('todos');
   const [filterUrgencia, setFilterUrgencia] = useState('todos');
   const [filterEjecutivo, setFilterEjecutivo] = useState('todos');
+  const [filterMes, setFilterMes] = useState('todos'); // 'todos' | 'YYYY-MM' (mes de creación)
 
   useEffect(() => { loadLeads(); if (isAdmin) loadEjecutivos(); }, []);
-  useEffect(() => { applyFilters(); }, [leads, searchTerm, filterEstado, filterUrgencia, filterEjecutivo]);
+  useEffect(() => { applyFilters(); }, [leads, searchTerm, filterEstado, filterUrgencia, filterEjecutivo, filterMes]);
   useEffect(() => {
     if (initialFilter?.estado) setFilterEstado(initialFilter.estado);
     if (initialFilter?.urgencia) setFilterUrgencia(initialFilter.urgencia);
@@ -119,8 +120,26 @@ export function LeadsModule({ onCreateNew, onViewDetail, initialFilter }: LeadsM
       if (filterEjecutivo === 'sin_asignar') f = f.filter(l => !l.ejecutivo_id);
       else f = f.filter(l => l.ejecutivo_id === filterEjecutivo);
     }
+    if (filterMes !== 'todos') {
+      f = f.filter(l => mesDeCreacion(l.created_at) === filterMes);
+    }
     setFilteredLeads(f);
   };
+
+  // Mes de creación en hora Colombia, como 'YYYY-MM'.
+  const mesDeCreacion = (iso: string) => {
+    const d = new Date(new Date(iso).toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+  const mesesDisponibles = (() => {
+    const set = new Set<string>();
+    leads.forEach(l => set.add(mesDeCreacion(l.created_at)));
+    return [...set].sort().reverse();
+  })();
+
+  const labelMes = (m: string) =>
+    new Date(m + '-15T12:00:00').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
 
   const getEjecutivoNombre = (id: string | null) =>
     id ? (ejecutivos.find(e => e.id === id)?.nombre_completo ?? null) : null;
@@ -167,7 +186,7 @@ export function LeadsModule({ onCreateNew, onViewDetail, initialFilter }: LeadsM
 
       <div className="bg-white rounded-2xl shadow-card border border-cream-200 p-4 sm:p-5">
         {/* Filters */}
-        <div className="space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 lg:grid-cols-5 sm:gap-3 mb-4">
+        <div className="space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 lg:grid-cols-6 sm:gap-3 mb-4">
           <div className="lg:col-span-2 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-sage-400 w-4 h-4" />
             <input
@@ -212,6 +231,17 @@ export function LeadsModule({ onCreateNew, onViewDetail, initialFilter }: LeadsM
               ))}
             </select>
           )}
+          <select
+            value={filterMes}
+            onChange={e => setFilterMes(e.target.value)}
+            className="px-3 py-2.5 rounded-xl border border-cream-300 text-sm text-sage-800 focus:outline-none focus:ring-2 focus:ring-sage-400 bg-cream-50"
+            title="Mes en que entró el lead"
+          >
+            <option value="todos">Todos los meses</option>
+            {mesesDisponibles.map(m => (
+              <option key={m} value={m} className="capitalize">{labelMes(m)}</option>
+            ))}
+          </select>
         </div>
 
         <p className="text-xs text-sage-500 font-medium mb-3">

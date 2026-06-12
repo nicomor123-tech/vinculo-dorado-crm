@@ -282,6 +282,7 @@ interface DatabaseDef {
           un_solo_nivel: boolean
           maneja_demencia: boolean
           maneja_silla_ruedas: boolean
+          tipo_servicio: string
           descripcion: string | null
           estado: string
           registrado_por: string | null
@@ -328,6 +329,7 @@ interface DatabaseDef {
           un_solo_nivel?: boolean
           maneja_demencia?: boolean
           maneja_silla_ruedas?: boolean
+          tipo_servicio?: string
           descripcion?: string | null
           estado?: string
           registrado_por?: string | null
@@ -374,11 +376,64 @@ interface DatabaseDef {
           un_solo_nivel?: boolean
           maneja_demencia?: boolean
           maneja_silla_ruedas?: boolean
+          tipo_servicio?: string
           descripcion?: string | null
           estado?: string
           registrado_por?: string | null
           created_at?: string
           updated_at?: string
+        }
+      }
+      hogar_fotos: {
+        Row: {
+          id: string
+          hogar_id: string
+          url: string
+          orden: number
+          es_portada: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          hogar_id: string
+          url: string
+          orden?: number
+          es_portada?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          hogar_id?: string
+          url?: string
+          orden?: number
+          es_portada?: boolean
+          created_at?: string
+        }
+      }
+      telegram_mensajes_lead: {
+        Row: {
+          id: string
+          lead_id: string
+          chat_id: string
+          message_id: number
+          editado: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          lead_id: string
+          chat_id: string
+          message_id: number
+          editado?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          lead_id?: string
+          chat_id?: string
+          message_id?: number
+          editado?: boolean
+          created_at?: string
         }
       }
       notas_seguimiento: {

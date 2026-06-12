@@ -15,7 +15,6 @@ import {
   getStageGroup,
 } from '../lib/pipeline';
 import { GestionPanel } from './lead/GestionPanel';
-import { notificarEjecutivo } from '../lib/telegram';
 import { AnalisisIA } from './lead/AnalisisIA';
 import { LeadNotes } from './lead/LeadNotes';
 import { WhatsAppButton } from './lead/WhatsAppButton';
@@ -355,13 +354,8 @@ export function LeadDetail({ leadId, onBack }: LeadDetailProps) {
         metadata: { ejecutivo_id: ejecutivoId },
       });
 
-      // Avisar por Telegram al ejecutivo que recibe el lead (si no es quien asigna).
-      if (ejecutivoId && ejecutivoId !== user.id && lead) {
-        notificarEjecutivo(
-          ejecutivoId,
-          `📌 <b>Lead ${lead.ejecutivo_id ? 'reasignado' : 'asignado'} a ti</b>\n👤 ${lead.nombre_contacto || lead.nombre_adulto_mayor}\n🔗 https://crm.vinculodorado.co/leads/${leadId}`,
-        );
-      }
+      // El aviso al ejecutivo (ficha + TOP 3 de hogares) lo envía la Edge
+      // Function lead-eventos vía trigger de BD sobre ejecutivo_id.
 
       loadLeadData();
     } catch (err) {

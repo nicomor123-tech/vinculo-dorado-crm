@@ -11,6 +11,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { getStageLabel } from '../../lib/pipeline';
+import { faltantesDeHogar } from '../../lib/hogarCompletitud';
 
 // ---------------------------------------------------------------------------
 // Centro de Inteligencia Comercial — /inteligencia
@@ -132,8 +133,26 @@ export function InteligenciaModule() {
   const [historial, setHistorial] = useState<HistRow[]>([]);
   const [comisiones, setComisiones] = useState<ComisionRow[]>([]);
   const [ejecutivos, setEjecutivos] = useState<PerfilRow[]>([]);
+  const [hogaresIncompletos, setHogaresIncompletos] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [sinHistorial, setSinHistorial] = useState(false);
+
+  // Selector rápido de mes (A5): setea el rango desde/hasta de una.
+  const aplicarMes = (anio: number, mesIdx0: number) => {
+    setDesde(isoDate(new Date(anio, mesIdx0, 1)));
+    setHasta(isoDate(new Date(anio, mesIdx0 + 1, 0)));
+  };
+  const mesActivo = (() => {
+    const d = new Date(desde + 'T12:00:00');
+    const h = new Date(hasta + 'T12:00:00');
+    const esMesCompleto = d.getDate() === 1 && h.getMonth() === d.getMonth() && h.getFullYear() === d.getFullYear()
+      && h.getDate() === new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    if (!esMesCompleto) return null;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  })();
+  const hoyMes = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+  const mesPasadoDate = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+  const mesPasado = `${mesPasadoDate.getFullYear()}-${String(mesPasadoDate.getMonth() + 1).padStart(2, '0')}`;
 
   useEffect(() => {
     cargar();
@@ -162,6 +181,28 @@ export function InteligenciaModule() {
       }
       setComisiones((comRes.data as ComisionRow[]) ?? []);
       setEjecutivos((perfRes.data as PerfilRow[]) ?? []);
+
+      // Hogares incompletos (A6) — degradar sin romper si hogar_fotos no existe.
+      try {
+        const { data: hogs } = await supabase
+          .from('hogares')
+          .select('id, precio_desde, localidad, barrio, telefono, whatsapp, descripcion')
+          .neq('estado', 'rechazado');
+        let fotosPorHogar: Map<string, number> | null = null;
+        const fotosRes = await supabase.from('hogar_fotos').select('hogar_id');
+        if (!fotosRes.error && fotosRes.data) {
+          fotosPorHogar = new Map();
+          (fotosRes.data as { hogar_id: string }[]).forEach(f => {
+            fotosPorHogar!.set(f.hogar_id, (fotosPorHogar!.get(f.hogar_id) ?? 0) + 1);
+          });
+        }
+        const incompletos = (hogs ?? []).filter(h =>
+          faltantesDeHogar(h, fotosPorHogar ? (fotosPorHogar.get(h.id) ?? 0) : null).length > 0,
+        ).length;
+        setHogaresIncompletos(incompletos);
+      } catch {
+        setHogaresIncompletos(null);
+      }
     } catch (e) {
       console.error('Error cargando inteligencia:', e);
     } finally {
@@ -484,6 +525,47 @@ export function InteligenciaModule() {
   }, [notasEnRango]);
 
   // ------------------------------------------------------------------
+  // Cohortes por mes (A5 — pedido de Vanessa): cada lead cuenta en el mes
+  // en que ENTRÓ, así un cierre que tarda 3 meses se ve en su cohorte.
+  // ------------------------------------------------------------------
+  const cohortes = useMemo(() => {
+    const cierrePorLead = new Map<string, string>();
+    histFiltrado
+      .filter(h => h.etapa_nueva === 'cierre_ganado')
+      .forEach(h => { if (!cierrePorLead.has(h.lead_id)) cierrePorLead.set(h.lead_id, h.changed_at); });
+
+    const map = new Map<string, { total: number; ganados: number; perdidos: number; sumaDias: number; nDias: number }>();
+    leadsFiltrados.forEach(l => {
+      const d = new Date(new Date(l.created_at).toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const c = map.get(key) ?? { total: 0, ganados: 0, perdidos: 0, sumaDias: 0, nDias: 0 };
+      c.total++;
+      if (l.estado === 'cierre_ganado') {
+        c.ganados++;
+        const fechaCierre = cierrePorLead.get(l.id) ?? l.updated_at;
+        const dias = (Date.parse(fechaCierre) - Date.parse(l.created_at)) / 86_400_000;
+        if (isFinite(dias) && dias >= 0) { c.sumaDias += dias; c.nDias++; }
+      }
+      if (l.estado === 'cierre_perdido' || l.estado === 'fallecido') c.perdidos++;
+      map.set(key, c);
+    });
+
+    return [...map.entries()]
+      .sort(([a], [b]) => b.localeCompare(a))
+      .slice(0, 12)
+      .map(([mes, c]) => ({
+        mes,
+        label: new Date(mes + '-15T12:00:00').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }),
+        total: c.total,
+        pctGanados: c.total > 0 ? Math.round((c.ganados / c.total) * 100) : 0,
+        pctPerdidos: c.total > 0 ? Math.round((c.perdidos / c.total) * 100) : 0,
+        ganados: c.ganados,
+        perdidos: c.perdidos,
+        diasCierre: c.nDias > 0 ? Math.round(c.sumaDias / c.nDias) : null,
+      }));
+  }, [leadsFiltrados, histFiltrado]);
+
+  // ------------------------------------------------------------------
   // Origen del lead y conversión por origen
   // ------------------------------------------------------------------
   const porOrigen = useMemo(() => {
@@ -568,6 +650,30 @@ export function InteligenciaModule() {
             <Filter className="w-3.5 h-3.5" /> Filtros
           </div>
           <div>
+            <label className="block text-[10px] uppercase tracking-wider text-white/40 mb-1">Mes rápido</label>
+            <div className="flex rounded-lg overflow-hidden border border-white/15">
+              <button onClick={() => aplicarMes(hoy.getFullYear(), hoy.getMonth())}
+                className={`px-3 py-2 text-xs font-semibold transition ${mesActivo === hoyMes ? 'bg-gold-500 text-white' : 'text-white/50 hover:text-white'}`}>
+                Este mes
+              </button>
+              <button onClick={() => aplicarMes(mesPasadoDate.getFullYear(), mesPasadoDate.getMonth())}
+                className={`px-3 py-2 text-xs font-semibold transition border-l border-white/10 ${mesActivo === mesPasado ? 'bg-gold-500 text-white' : 'text-white/50 hover:text-white'}`}>
+                Mes pasado
+              </button>
+              <input
+                type="month"
+                value={mesActivo ?? ''}
+                onChange={e => {
+                  if (!e.target.value) return;
+                  const [y, m] = e.target.value.split('-').map(Number);
+                  aplicarMes(y, m - 1);
+                }}
+                className="bg-white/10 border-l border-white/10 text-white text-xs px-2 py-2 outline-none [color-scheme:dark] w-[120px]"
+                title="Elegir mes"
+              />
+            </div>
+          </div>
+          <div>
             <label className="block text-[10px] uppercase tracking-wider text-white/40 mb-1">Desde</label>
             <input type="date" value={desde} onChange={e => setDesde(e.target.value)}
               className="bg-white/10 border border-white/15 text-white text-sm rounded-lg px-3 py-2 outline-none focus:border-gold-400 [color-scheme:dark]" />
@@ -634,6 +740,11 @@ export function InteligenciaModule() {
                 ? kpis.porEjecutivo.map(p => `${p.nombre} ${p.activos}`).join(' · ')
                 : 'en tu pipeline',
             },
+            ...(isAdmin && hogaresIncompletos !== null ? [{
+              icon: AlertTriangle, label: 'Hogares incompletos', color: '#fb923c',
+              value: String(hogaresIncompletos),
+              desc: 'sin fotos, precio, zona o teléfono',
+            }] : []),
           ].map((k, i) => {
             const Icon = k.icon;
             return (
@@ -853,6 +964,45 @@ export function InteligenciaModule() {
             </div>
           </Panel>
         </div>
+
+        {/* ---------- Cohortes por mes ---------- */}
+        <Panel icon={CalendarRange} title="Cohortes por mes" subtitle="Cada lead cuenta en el mes en que entró — los cierres lentos se ven en su cohorte de origen">
+          {cohortes.length === 0 ? (
+            <EmptyChart msg="Sin leads registrados aún." />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs min-w-[560px]">
+                <thead>
+                  <tr className="text-white/40 print:text-gray-500 uppercase tracking-wider text-[10px]">
+                    <th className="text-left py-2 pr-3 font-semibold">Mes de entrada</th>
+                    <th className="text-right py-2 px-3 font-semibold">Leads</th>
+                    <th className="text-right py-2 px-3 font-semibold">Ganados</th>
+                    <th className="text-right py-2 px-3 font-semibold">Perdidos</th>
+                    <th className="text-right py-2 px-3 font-semibold">Días al cierre</th>
+                    <th className="text-left py-2 pl-3 font-semibold w-[30%]">Resultado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cohortes.map(c => (
+                    <tr key={c.mes} className="border-t border-white/5">
+                      <td className="py-2.5 pr-3 text-white/80 print:text-gray-800 font-medium capitalize">{c.label}</td>
+                      <td className="py-2.5 px-3 text-right text-white font-bold print:text-black">{c.total}</td>
+                      <td className="py-2.5 px-3 text-right text-emerald-300 font-semibold">{c.ganados} ({c.pctGanados}%)</td>
+                      <td className="py-2.5 px-3 text-right text-rose-300 font-semibold">{c.perdidos} ({c.pctPerdidos}%)</td>
+                      <td className="py-2.5 px-3 text-right text-white/70">{c.diasCierre != null ? `${c.diasCierre} d` : '—'}</td>
+                      <td className="py-2.5 pl-3">
+                        <div className="h-2.5 rounded-full overflow-hidden flex" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                          <div style={{ width: `${c.pctGanados}%`, background: '#22c55e' }} />
+                          <div style={{ width: `${c.pctPerdidos}%`, background: '#fb7185' }} />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
 
         {/* ---------- Origen ---------- */}
         <Panel icon={Target} title="Origen del lead y conversión" subtitle="De dónde llegan los clientes y cuáles cierran">

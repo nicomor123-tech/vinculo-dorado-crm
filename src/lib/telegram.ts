@@ -65,44 +65,9 @@ type InlineKeyboard = {
   inline_keyboard: { text: string; callback_data: string }[][];
 };
 
-// Botones de asignación de lead, generados desde profiles.telegram_alias.
-// callback_data: "asg:<leadId>:<alias>" — lo procesa la Edge Function telegram-webhook.
-async function tecladoAsignacion(leadId: string): Promise<InlineKeyboard | undefined> {
-  const profiles = await loadNotifiableProfiles();
-  const asignables = profiles.filter((p) => p.telegram_alias);
-  if (asignables.length === 0) return undefined;
-  const admins = asignables.filter((p) => p.rol === 'administrador');
-  const ejecutivos = asignables.filter((p) => p.rol !== 'administrador');
-  const fila = (ps: NotifiableProfile[]) =>
-    ps.map((p) => ({
-      text: p.nombre_completo.split(' ')[0],
-      callback_data: `asg:${leadId}:${p.telegram_alias}`,
-    }));
-  const keyboard: InlineKeyboard = { inline_keyboard: [] };
-  if (admins.length > 0) keyboard.inline_keyboard.push(fila(admins));
-  if (ejecutivos.length > 0) keyboard.inline_keyboard.push(fila(ejecutivos));
-  return keyboard;
-}
-
-// Notifica a los ADMINS de un lead nuevo con botones de asignación, y al
-// ejecutivo asignado (si lo hay y tiene telegram_chat_id) SIN botones.
-// Fire-and-forget: nunca lanza.
-export async function notificarNuevoLead(
-  leadId: string,
-  ejecutivoId: string | null | undefined,
-  mensaje: string,
-): Promise<void> {
-  const adminIds = await getAdminChatIds();
-  await notificar(adminIds, mensaje, await tecladoAsignacion(leadId));
-
-  // Ejecutivo asignado (si aplica): mismo mensaje, sin botones.
-  if (ejecutivoId) {
-    const chatId = await getChatIdDePerfil(ejecutivoId);
-    if (chatId && !adminIds.includes(chatId)) {
-      await notificar([chatId], mensaje);
-    }
-  }
-}
+// Nota: la notificación de "lead nuevo" con botones de asignación ya NO sale
+// del frontend — la envía la Edge Function lead-eventos vía trigger de BD
+// (cubre también los leads del formulario web, con exclusión mutua).
 
 // Notifica SOLO a los admins (sin botones). Fire-and-forget.
 // Se usa para eventos clave de pipeline (visita agendada, cierre ganado/perdido).

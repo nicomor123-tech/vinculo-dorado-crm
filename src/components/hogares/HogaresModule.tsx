@@ -1,9 +1,10 @@
 import { useEffect, useState, useMemo } from 'react';
 import {
   Search, SlidersHorizontal, Plus, Eye, MapPin, Phone,
-  BedDouble, ChevronDown, X, Building2, BadgeCheck, Clock, XCircle,
+  BedDouble, ChevronDown, X, Building2, BadgeCheck, Clock, XCircle, AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { faltantesDeHogar } from '../../lib/hogarCompletitud';
 import type { Database } from '../../lib/database.types';
 
 type Hogar = Database['public']['Tables']['hogares']['Row'];
@@ -70,6 +71,8 @@ export function HogaresModule({ onViewDetail, onCreateNew }: HogaresModuleProps)
   const [filterPrecioIdx, setFilterPrecioIdx] = useState(0);
   const [activeServicios, setActiveServicios] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [soloIncompletos, setSoloIncompletos] = useState(false);
+  const [fotosPorHogar, setFotosPorHogar] = useState<Map<string, number> | null>(null);
 
   useEffect(() => {
     loadHogares();
@@ -84,12 +87,25 @@ export function HogaresModule({ onViewDetail, onCreateNew }: HogaresModuleProps)
         .order('created_at', { ascending: false });
       if (error) throw error;
       setHogares(data || []);
+
+      // Conteo de fotos por hogar (si la tabla aún no existe, se degrada sin romper).
+      const fotosRes = await supabase.from('hogar_fotos').select('hogar_id');
+      if (!fotosRes.error && fotosRes.data) {
+        const m = new Map<string, number>();
+        (fotosRes.data as { hogar_id: string }[]).forEach(f => m.set(f.hogar_id, (m.get(f.hogar_id) ?? 0) + 1));
+        setFotosPorHogar(m);
+      } else {
+        setFotosPorHogar(null);
+      }
     } catch (e) {
       console.error('Error loading hogares:', e);
     } finally {
       setLoading(false);
     }
   };
+
+  const faltantesDe = (h: Hogar): string[] =>
+    faltantesDeHogar(h, fotosPorHogar ? (fotosPorHogar.get(h.id) ?? 0) : null);
 
   const toggleServicio = (key: string) => {
     setActiveServicios((prev) =>
@@ -134,8 +150,13 @@ export function HogaresModule({ onViewDetail, onCreateNew }: HogaresModuleProps)
       list = list.filter((h) => (h as Record<string, unknown>)[key] === true);
     }
 
+    if (soloIncompletos) {
+      list = list.filter((h) => faltantesDe(h).length > 0);
+    }
+
     return list;
-  }, [hogares, search, filterLocalidad, filterEstado, filterPrecioIdx, activeServicios]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hogares, search, filterLocalidad, filterEstado, filterPrecioIdx, activeServicios, soloIncompletos, fotosPorHogar]);
 
   const activeFilterCount =
     (filterLocalidad ? 1 : 0) +
@@ -181,6 +202,21 @@ export function HogaresModule({ onViewDetail, onCreateNew }: HogaresModuleProps)
             className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
           />
         </div>
+        <button
+          onClick={() => setSoloIncompletos(v => !v)}
+          className={`flex items-center gap-2 px-4 py-2.5 border rounded-lg text-sm font-medium transition ${
+            soloIncompletos
+              ? 'border-amber-500 bg-amber-50 text-amber-800'
+              : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+          }`}
+          title="Hogares a los que les falta información comercial"
+        >
+          <AlertTriangle className="w-4 h-4" />
+          Incompletos
+          <span className={`ml-1 px-1.5 h-5 min-w-[20px] rounded-full text-xs flex items-center justify-center font-bold ${soloIncompletos ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
+            {hogares.filter(h => faltantesDe(h).length > 0).length}
+          </span>
+        </button>
         <button
           onClick={() => setShowFilters(!showFilters)}
           className={`flex items-center gap-2 px-4 py-2.5 border rounded-lg text-sm font-medium transition ${
@@ -286,7 +322,7 @@ export function HogaresModule({ onViewDetail, onCreateNew }: HogaresModuleProps)
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((hogar) => (
-            <HogarCard key={hogar.id} hogar={hogar} onViewDetail={onViewDetail} />
+            <HogarCard key={hogar.id} hogar={hogar} faltantes={faltantesDe(hogar)} onViewDetail={onViewDetail} />
           ))}
         </div>
       )}
@@ -294,7 +330,7 @@ export function HogaresModule({ onViewDetail, onCreateNew }: HogaresModuleProps)
   );
 }
 
-function HogarCard({ hogar, onViewDetail }: { hogar: Hogar; onViewDetail: (id: string) => void }) {
+function HogarCard({ hogar, faltantes, onViewDetail }: { hogar: Hogar; faltantes: string[]; onViewDetail: (id: string) => void }) {
   const servicios: string[] = [];
   if (hogar.serv_enfermeria_24h) servicios.push('Enfermería 24h');
   if (hogar.serv_fisioterapia) servicios.push('Fisioterapia');
@@ -346,6 +382,15 @@ function HogarCard({ hogar, onViewDetail }: { hogar: Hogar; onViewDetail: (id: s
           </div>
         </div>
       </div>
+
+      {faltantes.length > 0 && (
+        <div className="flex items-start gap-1.5 px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-lg">
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <span className="text-xs text-amber-800">
+            <span className="font-semibold">Falta:</span> {faltantes.join(', ')}
+          </span>
+        </div>
+      )}
 
       {habitaciones.length > 0 && (
         <div className="flex flex-wrap gap-1.5">

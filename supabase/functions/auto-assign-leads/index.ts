@@ -156,7 +156,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
     const ADMIN_CHAT_IDS = await getAdminChatIds();
-    const ejeChatId = EJECUTIVO.chatId;
 
     const asignados: string[] = [];
 
@@ -183,22 +182,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       asignados.push(lead.id);
       const nombre = lead.nombre_contacto || lead.nombre_adulto_mayor || "(sin nombre)";
 
-      // Aviso a admins.
+      // Aviso a admins del timeout. La ficha + TOP 3 de hogares al ejecutivo
+      // la envía lead-eventos (trigger de BD sobre ejecutivo_id), que también
+      // edita los mensajes de "lead nuevo" quitándoles los botones.
       const msgAdmin =
         `⏰ Lead <b>${nombre}</b> auto-asignado a ${EJECUTIVO.nombre} ` +
         `(no se asignó en ${etiqueta})\n` +
         `🔗 https://crm.vinculodorado.co/leads/${lead.id}`;
       for (const adminId of ADMIN_CHAT_IDS) {
         await tgSend(adminId, msgAdmin);
-      }
-
-      // Aviso a Vanessa (solo si tiene chat_id).
-      if (ejeChatId) {
-        await tgSend(
-          ejeChatId,
-          `📌 <b>Lead auto-asignado a ti</b>\n${nombre}\n` +
-            `🔗 https://crm.vinculodorado.co/leads/${lead.id}`,
-        );
       }
     }
 
