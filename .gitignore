@@ -19,6 +19,10 @@ SQL_DASHBOARD_*.sql
 # Prompt de misión y documentos operativos con secretos — NUNCA subir
 PROMPT_CODE_VINCULO.md
 MISION_SINCRONIA_WEB.md
+MISION_WEB_PUBLICA.md
+SQL3.md
+DEPLOY3.md
+RESUMEN3.md
 SQL.md
 DEPLOY.md
 RESUMEN.md

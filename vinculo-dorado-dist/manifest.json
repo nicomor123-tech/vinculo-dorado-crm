@@ -1,0 +1,17 @@
+{
+  "name": "Vínculo Dorado CRM",
+  "short_name": "VD CRM",
+  "description": "CRM comercial de Vínculo Dorado — leads, hogares, propuestas e inteligencia.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#213521",
+  "theme_color": "#213521",
+  "lang": "es-CO",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
